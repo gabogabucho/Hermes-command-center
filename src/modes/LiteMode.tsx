@@ -9,171 +9,125 @@ type Props = {
 
 export function LiteMode({ instance, actionRuns, onRunAction }: Props) {
   const { snapshot, summary } = instance;
-  const probeSummary = snapshot.probeSummary;
   const prioritizedIncidents = prioritizeIncidents(snapshot.incidents);
   const primaryIncident = prioritizedIncidents[0];
   const latestActionRun = getLatestActionRun(snapshot.actions, actionRuns);
   const incidentCounts = getIncidentCounts(snapshot.incidents);
+  const queueLoad = snapshot.queues.reduce((t, q) => t + q.depth, 0);
 
   return (
-    <section className="panel mode-panel lite-mode-panel">
-      <div className="module-grid lite-module-grid">
-        <article className="dashboard-card lite-hero-card module-card-wide">
-          <div className="card-heading">
-            <div>
-              <span className="eyebrow">Control Pad</span>
-              <h3>{summary.name}</h3>
-            </div>
-            <span className={`severity-pill severity-pill-${summary.status}`}>{summary.status}</span>
-          </div>
+    <div className="ops-console ops-console-lite">
 
-          <div className="lite-status-row compact-lite-status-row">
-            <article className="ink-card">
-              <span>Incidents</span>
-              <strong>{snapshot.incidents.length}</strong>
-            </article>
-            <article className="ink-card">
-              <span>Agents</span>
-              <strong>{snapshot.agents.length + snapshot.subagents.length}</strong>
-            </article>
-            <article className="ink-card">
-              <span>Actions</span>
-              <strong>{snapshot.actions.filter((action) => action.availability === 'available').length}</strong>
-            </article>
-          </div>
+      {/* Vitals row */}
+      <div className="ops-vitals">
+        <div className={`vital-chip ${incidentCounts.critical > 0 ? 'vital-critical' : ''}`}>
+          <span>Incidents</span>
+          <strong>{snapshot.incidents.length}</strong>
+        </div>
+        <div className="vital-chip">
+          <span>Queue</span>
+          <strong>{queueLoad}</strong>
+        </div>
+        <div className="vital-chip">
+          <span>Agents</span>
+          <strong>{snapshot.agents.length + snapshot.subagents.length}</strong>
+        </div>
+        <div className="vital-chip">
+          <span>Actions</span>
+          <strong style={{ color: snapshot.actions.filter((a) => a.availability === 'available').length > 0 ? 'var(--green)' : 'var(--text-muted)' }}>
+            {snapshot.actions.filter((a) => a.availability === 'available').length} rdy
+          </strong>
+        </div>
+      </div>
 
-          <div className="status-stack">
-            <small>{summary.connection.baseUrl ?? summary.connection.path ?? 'No endpoint registered yet'}</small>
-            {probeSummary ? <small>{probeSummary.naming.source} · {probeSummary.naming.detail}</small> : null}
-          </div>
-        </article>
-
-        <article className="dashboard-card module-card module-card-tall">
-          <div className="card-heading">
-            <div>
-              <span className="eyebrow">Primary Incident</span>
-              <h3>Attention</h3>
-            </div>
-            <span className="severity-summary">
-              {incidentCounts.critical} critical · {incidentCounts.warning} warning
-            </span>
+      {/* Main 2-col */}
+      <div className="ops-grid ops-grid-lite">
+        {/* Primary incident */}
+        <div className="ops-incidents">
+          <div className="ops-panel-label">
+            Top Incident
+            <span className="ops-incident-meta">{incidentCounts.critical}c · {incidentCounts.warning}w</span>
           </div>
 
           {primaryIncident ? (
-            <article className={`incident-priority-card incident-priority-card-${primaryIncident.severity}`}>
-              <div className="incident-priority-header">
+            <article className={`ops-incident ops-incident-top incident-priority-card-${primaryIncident.severity}`}>
+              <div className="ops-incident-head">
                 <span className={`severity-pill severity-pill-${primaryIncident.severity}`}>{primaryIncident.severity}</span>
-                <span className="incident-category">{primaryIncident.category}</span>
+                <span className="ops-incident-cat">{primaryIncident.category}</span>
               </div>
-              <strong>{primaryIncident.title}</strong>
-              <p>{primaryIncident.summary}</p>
-              <small>{primaryIncident.actionHint}</small>
+              <strong className="ops-incident-title">{primaryIncident.title}</strong>
+              <p className="ops-incident-hint">{primaryIncident.actionHint}</p>
             </article>
           ) : (
-            <div className="empty-state">No active incidents.</div>
+            <div className="ops-all-clear">
+              <span className="all-clear-dot" />
+              All clear
+            </div>
           )}
 
-          <div className="incident-list compact-incident-list">
-            {prioritizedIncidents.slice(1, 4).map((incident) => (
-              <article key={incident.id} className="incident-row incident-row-lite">
-                <div>
-                  <strong>{incident.title}</strong>
-                  <p>{incident.source}</p>
-                </div>
-                <span className={`severity-pill severity-pill-${incident.severity}`}>{incident.severity}</span>
-              </article>
-            ))}
-          </div>
-        </article>
+          {prioritizedIncidents.slice(1, 3).map((inc) => (
+            <article key={inc.id} className="ops-incident">
+              <div className="ops-incident-head">
+                <span className={`severity-pill severity-pill-${inc.severity}`}>{inc.severity}</span>
+                <span className="ops-incident-cat">{inc.category}</span>
+              </div>
+              <strong className="ops-incident-title">{inc.title}</strong>
+            </article>
+          ))}
+        </div>
 
-        <article className="dashboard-card module-card module-card-tall">
-          <div className="card-heading">
-            <div>
-              <span className="eyebrow">Quick Actions</span>
-              <h3>Command Buttons</h3>
+        {/* Actions */}
+        <div className="ops-actions">
+          <div className="ops-panel-label">Quick Fix</div>
+
+          {snapshot.actions.map((action) => {
+            const run = actionRuns[action.id];
+            const isRunning = run?.status === 'running';
+            const isReady = action.availability === 'available';
+
+            return (
+              <div key={action.id} className="ops-action-item">
+                <code className="ops-action-cmd">{action.commandLabel}</code>
+                <button
+                  type="button"
+                  className={`ops-run-btn ${isReady ? 'ops-run-ready' : ''}`}
+                  disabled={!isReady || isRunning}
+                  onClick={() => onRunAction(instance, action)}
+                >
+                  {isRunning ? '⟳' : isReady ? '▶ Run' : 'Blocked'}
+                </button>
+                <p className="ops-action-result">{run?.summary ?? action.note}</p>
+              </div>
+            );
+          })}
+
+          {latestActionRun ? (
+            <div className="ops-last-run">
+              <span>{formatActionTimestamp(latestActionRun.updatedAt)}</span>
+              <span className={latestActionRun.exitCode === 0 ? 'exit-ok' : 'exit-fail'}>
+                exit {latestActionRun.exitCode ?? '—'}
+              </span>
             </div>
-            <span className="status status-online">fixed wrappers</span>
-          </div>
-
-          <div className="quick-actions-card">
-            {snapshot.actions.map((action) => {
-              const run = actionRuns[action.id];
-
-              return (
-                <div key={action.id} className="lite-action-row">
-                  <button
-                    type="button"
-                    className="lite-action-button"
-                    disabled={action.availability !== 'available' || run?.status === 'running'}
-                    onClick={() => onRunAction(instance, action)}
-                  >
-                    <span>{run?.status === 'running' ? `Running ${action.commandLabel}…` : action.commandLabel}</span>
-                    <strong>{action.availability === 'available' ? 'Run' : 'Blocked'}</strong>
-                  </button>
-                  <small>{run?.summary ?? action.note}</small>
-                </div>
-              );
-            })}
-          </div>
-
-          {latestActionRun ? <div className="event-strip">{formatActionTimestamp(latestActionRun.updatedAt)} · {latestActionRun.summary}</div> : null}
-        </article>
-
-        <article className="dashboard-card module-card module-card-wide scroll-card">
-          <div className="card-heading">
-            <div>
-              <span className="eyebrow">Signal Strip</span>
-              <h3>Operational Readout</h3>
-            </div>
-            <span className="status status-limited">compact</span>
-          </div>
-
-          <div className="stack-list">
-            {probeSummary ? (
-              <div className="list-row capability-row">
-                <div>
-                  <strong>Probe</strong>
-                  <p>{probeSummary.readiness} · {probeSummary.configuration} · {probeSummary.activity.summary}</p>
-                </div>
-                <span className="status status-online">{probeSummary.activity.sessionCount}</span>
-              </div>
-            ) : null}
-
-            {snapshot.queues.map((queue) => (
-              <div key={queue.label} className="list-row capability-row">
-                <div>
-                  <strong>{queue.label}</strong>
-                  <p>{queue.trend}</p>
-                </div>
-                <span className="queue-depth">{queue.depth}</span>
-              </div>
-            ))}
-
-            {snapshot.capabilityReport.capabilities.slice(0, 4).map((capability) => (
-              <div key={capability.key} className="list-row capability-row">
-                <div>
-                  <strong>{capability.key}</strong>
-                  <p>{capability.note}</p>
-                </div>
-                <span className={`status status-${capability.status}`}>{capability.status}</span>
-              </div>
-            ))}
-          </div>
-
-          <ul className="mono-list compact-mono-list">
-            {(
-              (latestActionRun?.outputLines.length ?? 0) > 0
-                ? latestActionRun?.outputLines
-                : snapshot.subagents.map((subagent) => `${subagent.label} · ${subagent.status}`)
-            )?.map((line, index) => (
-              <li key={`${summary.id}-lite-line-${index}`}>
-                <strong>{line}</strong>
-                {(latestActionRun?.outputLines.length ?? 0) > 0 ? <span>{latestActionRun?.exitCode ?? '—'}</span> : <span />}
-              </li>
-            ))}
-          </ul>
-        </article>
+          ) : null}
+        </div>
       </div>
-    </section>
+
+      {/* Terminal strip */}
+      <div className="ops-terminal">
+        <div className="ops-terminal-output">
+          {(latestActionRun?.outputLines ?? snapshot.subagents.map((s) => `${s.label} · ${s.status}`))
+            .slice(-3)
+            .map((line, i) => <span key={i} className="terminal-line">{line}</span>)}
+          <span className="terminal-cursor">▌</span>
+        </div>
+        <div className="ops-terminal-input ops-terminal-readonly">
+          <span className="terminal-prompt">›</span>
+          <span className="terminal-status-line">
+            {summary.connection.baseUrl ?? summary.connection.path ?? 'local'} · {summary.connection.transport}
+          </span>
+        </div>
+      </div>
+
+    </div>
   );
 }

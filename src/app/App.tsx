@@ -8,6 +8,7 @@ import type {
   OperatorActionId,
   OperatorActionSummary,
 } from '../adapters/types';
+import { PinGate } from '../components/PinGate';
 import { LiteMode } from '../modes/LiteMode';
 import { getIncidentCounts, type ActionRunState } from '../modes/panelModel';
 import { ProMode } from '../modes/ProMode';
@@ -421,261 +422,74 @@ export function App() {
     .sort((left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0))[0];
 
   return (
-    <main className="shell app-shell">
-      <header className="dashboard-card topbar-card">
-        <div className="brand-block">
-          <span className="eyebrow">Hermes Command Center</span>
-          <h1>Command Dashboard</h1>
+    <main className="ops-shell">
+      {/* ── Ops bar ──────────────────────────────────────────────── */}
+      <header className="ops-bar">
+        <div className="ops-brand">
+          <span className="ops-eyebrow">Hermes Fleet</span>
+          <span className="ops-logo">Command Center</span>
         </div>
 
-        <div className="topbar-kpis">
-          <div className="kpi-chip">
-            <span>Instance</span>
-            <strong>{selectedInstance.summary.name}</strong>
-          </div>
-          <div className="kpi-chip">
-            <span>Incidents</span>
-            <strong>{selectedInstance.snapshot.incidents.length}</strong>
-          </div>
-          <div className="kpi-chip">
-            <span>Actions Ready</span>
-            <strong>{availableActionCount}</strong>
-          </div>
-          <div className="kpi-chip">
-            <span>Fleet</span>
+        <select
+          className="ops-instance-select"
+          value={selectedInstance.summary.id}
+          onChange={(event) => setSelectedInstanceId(event.target.value)}
+          aria-label="Select instance"
+        >
+          {fleet.instances.map((instance) => (
+            <option key={instance.summary.id} value={instance.summary.id}>
+              {instance.summary.name} — {instance.summary.environment}
+            </option>
+          ))}
+        </select>
+
+        <span className={`ops-status-badge status-${selectedInstance.summary.status}`}>
+          <span className={`live-dot ${selectedInstance.summary.status !== 'online' ? (selectedInstance.summary.status === 'degraded' ? 'live-dot-orange' : 'live-dot-red') : ''}`} />
+          {selectedInstance.summary.status}
+        </span>
+
+        <div className="ops-bar-meta">
+          <span className="ops-meta-item">
+            <span className="ops-meta-label">Fleet</span>
             <strong>{fleet.instances.length}</strong>
-          </div>
+          </span>
+          <span className="ops-meta-item">
+            <span className="ops-meta-label">Source</span>
+            <strong>{fleetSource?.generatedAt ? 'probe' : 'mock'}</strong>
+          </span>
         </div>
 
-        <div className="topbar-actions">
-          <div className="segmented-control" role="group" aria-label="Surface selection override">
+        <div className="ops-mode-control" role="group" aria-label="Surface mode">
+          {(['auto', 'lite', 'pro'] as const).map((mode) => (
             <button
+              key={mode}
               type="button"
-              className={`segmented-button ${surfaceOverride === 'auto' ? 'is-active' : ''}`}
-              onClick={() => setSurfaceOverride('auto')}
+              className={`ops-mode-btn ${surfaceOverride === mode ? 'is-active' : ''}`}
+              onClick={() => setSurfaceOverride(mode)}
             >
-              Auto
+              {mode}
             </button>
-            <button
-              type="button"
-              className={`segmented-button ${surfaceOverride === 'lite' ? 'is-active' : ''}`}
-              onClick={() => setSurfaceOverride('lite')}
-            >
-              Lite
-            </button>
-            <button
-              type="button"
-              className={`segmented-button ${surfaceOverride === 'pro' ? 'is-active' : ''}`}
-              onClick={() => setSurfaceOverride('pro')}
-            >
-              Pro
-            </button>
-          </div>
-
-          <button type="button" className="secondary-button" onClick={() => void refreshFleet()}>
-            {isRefreshing ? 'Refreshing…' : 'Refresh'}
-          </button>
+          ))}
         </div>
+
+        <button
+          type="button"
+          className="ops-refresh-btn"
+          onClick={() => void refreshFleet()}
+          disabled={isRefreshing}
+        >
+          {isRefreshing ? '…' : '↻'}
+        </button>
       </header>
 
-      <section className="dashboard-layout">
-        <aside className="command-rail">
-          <article className="dashboard-card rail-card status-card">
-            <div className="card-heading compact-heading">
-              <div>
-                <span className="eyebrow">Scope</span>
-                <h2>{selectedInstance.summary.name}</h2>
-              </div>
-              <span className={`severity-pill severity-pill-${selectedInstance.summary.status}`}>
-                {selectedInstance.summary.status}
-              </span>
-            </div>
-
-            <select
-              id="instance-selector"
-              className="field-input"
-              value={selectedInstance.summary.id}
-              onChange={(event) => setSelectedInstanceId(event.target.value)}
-            >
-              {fleet.instances.map((instance) => (
-                <option key={instance.summary.id} value={instance.summary.id}>
-                  {instance.summary.name} — {instance.summary.environment}
-                </option>
-              ))}
-            </select>
-
-            <div className="mini-stat-grid">
-              <div className="mini-stat">
-                <span>Critical</span>
-                <strong>{incidentCounts.critical}</strong>
-              </div>
-              <div className="mini-stat">
-                <span>Queue Load</span>
-                <strong>{queueDepth}</strong>
-              </div>
-              <div className="mini-stat">
-                <span>Agents</span>
-                <strong>{selectedInstance.snapshot.agents.length}</strong>
-              </div>
-              <div className="mini-stat">
-                <span>Mode</span>
-                <strong>{effectiveSurfaceMode}</strong>
-              </div>
-            </div>
-
-            <div className="status-stack">
-              <small>{selectedInstance.summary.connection.baseUrl ?? selectedInstance.summary.connection.path ?? 'No endpoint registered'}</small>
-              <small>{fleetSource?.label ?? 'Probe loading'} · {surfaceSelection.reason}</small>
-            </div>
-          </article>
-
-          <article className="dashboard-card rail-card">
-            <div className="card-heading compact-heading">
-              <div>
-                <span className="eyebrow">Quick Actions</span>
-                <h3>Action Deck</h3>
-              </div>
-              <span className="status status-available">{availableActionCount} ready</span>
-            </div>
-
-            <div className="quick-action-stack">
-              {selectedInstance.snapshot.actions.map((action) => {
-                const run = selectedActionRuns[action.id];
-
-                return (
-                  <button
-                    key={action.id}
-                    type="button"
-                    className={`quick-action-button ${action.availability === 'available' ? 'is-ready' : 'is-blocked'}`}
-                    disabled={action.availability !== 'available' || run?.status === 'running'}
-                    onClick={() => void handleRunAction(selectedInstance, action)}
-                  >
-                    <span>{action.commandLabel}</span>
-                    <strong>{run?.status === 'running' ? 'Running…' : action.label}</strong>
-                    <small>{run?.summary ?? action.note}</small>
-                  </button>
-                );
-              })}
-            </div>
-
-            {latestRun ? <div className="event-strip">Last run · {latestRun.summary}</div> : null}
-          </article>
-
-          <article className="dashboard-card rail-card scroll-card">
-            <div className="card-heading compact-heading">
-              <div>
-                <span className="eyebrow">Fleet</span>
-                <h3>Targets</h3>
-              </div>
-              <span className="status status-online">{fleet.instances.length}</span>
-            </div>
-
-            <div className="registry-list compact-list">
-              {fleet.instances.map((instance) => (
-                <button
-                  key={instance.summary.id}
-                  type="button"
-                  className={`registry-row ${instance.summary.id === selectedInstance.summary.id ? 'is-active' : ''}`}
-                  onClick={() => setSelectedInstanceId(instance.summary.id)}
-                >
-                  <div>
-                    <strong>{instance.summary.name}</strong>
-                    <p>{instance.summary.environment}</p>
-                  </div>
-                  <span className={`status status-${instance.summary.status}`}>{instance.summary.status}</span>
-                </button>
-              ))}
-            </div>
-          </article>
-
-          <article className="dashboard-card rail-card scroll-card">
-            <div className="card-heading compact-heading">
-              <div>
-                <span className="eyebrow">Registry Ops</span>
-                <h3>Add Target</h3>
-              </div>
-              <span className="status status-limited">scaffold</span>
-            </div>
-
-            <div className="form-grid compact-form-grid">
-              <input
-                className="field-input"
-                value={manualDraft.name}
-                onChange={(event) => setManualDraft((draft) => ({ ...draft, name: event.target.value }))}
-                placeholder="Name"
-              />
-              <input
-                className="field-input"
-                value={manualDraft.path}
-                onChange={(event) => setManualDraft((draft) => ({ ...draft, path: event.target.value }))}
-                placeholder="Path"
-              />
-              <input
-                className="field-input"
-                value={manualDraft.baseUrl}
-                onChange={(event) => setManualDraft((draft) => ({ ...draft, baseUrl: event.target.value }))}
-                placeholder="Base URL"
-              />
-            </div>
-
-            <button type="button" className="primary-button" onClick={handleManualAdd}>
-              Save target
-            </button>
-
-            <div className="suggestion-list compact-list">
-              {fleet.discoverySuggestions.map((suggestion) => (
-                <div key={suggestion.id} className="suggestion-card">
-                  <div>
-                    <strong>{suggestion.name}</strong>
-                    <p>{suggestion.reason}</p>
-                  </div>
-                  <button type="button" className="secondary-button" onClick={() => handleSuggestionAdd(suggestion)}>
-                    Add
-                  </button>
-                </div>
-              ))}
-            </div>
-          </article>
-        </aside>
-
-        <section className="surface-area">
-          <article className="dashboard-card surface-status-strip">
-            <div className="surface-status-block">
-              <span className="eyebrow">Live Surface</span>
-              <h2>{effectiveSurfaceMode === 'pro' ? 'Pro Dashboard' : 'Lite Control Pad'}</h2>
-            </div>
-
-            <div className="surface-status-metrics">
-              <div className="surface-pill">
-                <span>Auto</span>
-                <strong>{surfaceSelection.mode}</strong>
-              </div>
-              <div className="surface-pill">
-                <span>Viewport</span>
-                <strong>
-                  {surfaceSelection.signals.viewportWidth}×{surfaceSelection.signals.viewportHeight}
-                </strong>
-              </div>
-              <div className="surface-pill">
-                <span>Source</span>
-                <strong>{fleetSource?.generatedAt ? 'probe' : 'mock'}</strong>
-              </div>
-              <div className="surface-pill emphasis-pill">
-                <span>Reason</span>
-                <strong>{surfaceSelection.reason}</strong>
-              </div>
-            </div>
-          </article>
-
-          <div className="surface-frame">
-            {effectiveSurfaceMode === 'pro' ? (
-              <ProMode instance={selectedInstance} actionRuns={selectedActionRuns} onRunAction={handleRunAction} />
-            ) : (
-              <LiteMode instance={selectedInstance} actionRuns={selectedActionRuns} onRunAction={handleRunAction} />
-            )}
-          </div>
-        </section>
-      </section>
+      {/* ── Main console ─────────────────────────────────────────── */}
+      <div className="ops-main">
+        {effectiveSurfaceMode === 'pro' ? (
+          <ProMode instance={selectedInstance} actionRuns={selectedActionRuns} onRunAction={handleRunAction} />
+        ) : (
+          <LiteMode instance={selectedInstance} actionRuns={selectedActionRuns} onRunAction={handleRunAction} />
+        )}
+      </div>
     </main>
   );
 }

@@ -1,5 +1,6 @@
 import { collectHermesFleetSnapshot } from './fleetProbe.mjs';
 import { runDoctorAction, runStatusAction } from './doctorAction.mjs';
+import { streamChatResponse } from './chatAction.mjs';
 
 function sendJson(response, statusCode, payload) {
   response.statusCode = statusCode;
@@ -117,6 +118,41 @@ async function handleStatusRequest(request, response) {
   }
 }
 
+async function handleChatRequest(request, response) {
+  if (request.method !== 'POST') {
+    response.setHeader('Allow', 'POST');
+    sendJson(response, 405, { error: 'Method not allowed.' });
+    return;
+  }
+
+  try {
+    const payload = await readJsonBody(request);
+    const message = typeof payload.message === 'string' ? payload.message.trim() : '';
+    const instanceId = typeof payload.instanceId === 'string' ? payload.instanceId.trim() : '';
+    const sessionName = typeof payload.sessionName === 'string' ? payload.sessionName.trim() : undefined;
+
+    if (!message) {
+      sendJson(response, 400, { error: 'message is required.' });
+      return;
+    }
+
+    // Set SSE headers
+    response.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    response.setHeader('Cache-Control', 'no-cache, no-transform');
+    response.setHeader('Connection', 'keep-alive');
+    response.setHeader('X-Accel-Buffering', 'no');
+    response.setHeader('Access-Control-Allow-Origin', '*');
+    response.statusCode = 200;
+    response.flushHeaders?.();
+
+    await streamChatResponse(instanceId, message, sessionName, response);
+  } catch (error) {
+    if (!response.headersSent) {
+      sendJson(response, 500, { error: error instanceof Error ? error.message : 'Chat action failed.' });
+    }
+  }
+}
+
 function registerFleetRoutes(server) {
   server.middlewares.use('/api/fleet', (request, response) => {
     void handleFleetRequest(request, response);
@@ -129,6 +165,9 @@ function registerFleetRoutes(server) {
   });
   server.middlewares.use('/api/actions/status', (request, response) => {
     void handleStatusRequest(request, response);
+  });
+  server.middlewares.use('/api/chat', (request, response) => {
+    void handleChatRequest(request, response);
   });
 }
 

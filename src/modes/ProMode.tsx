@@ -1,5 +1,56 @@
+import { useRef, useState } from 'react';
 import type { HermesInstanceRecord, OperatorActionId, OperatorActionSummary } from '../adapters/types';
+import { useLiveMetrics } from '../hooks/useLiveMetrics';
 import { formatActionTimestamp, getIncidentCounts, getLatestActionRun, prioritizeIncidents, type ActionRunState } from './panelModel';
+
+type ChatEntry = { role: 'user' | 'agent'; text: string };
+
+async function sendChatMessage(
+  instanceId: string,
+  message: string,
+  onChunk: (text: string) => void,
+  onDone: (exitCode: number) => void,
+  onError: (err: string) => void,
+) {
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instanceId, message }),
+    });
+
+    if (!res.ok || !res.body) {
+      onError(`HTTP ${res.status}`);
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() ?? '';
+
+      for (const part of parts) {
+        const line = part.replace(/^data:\s*/, '').trim();
+        if (!line) continue;
+        try {
+          const evt = JSON.parse(line);
+          if (evt.chunk) onChunk(evt.chunk);
+          if (evt.done) onDone(evt.exitCode ?? 0);
+          if (evt.error) onError(evt.error);
+        } catch { /* ignore malformed SSE */ }
+      }
+    }
+  } catch (err) {
+    onError(err instanceof Error ? err.message : 'fetch failed');
+  }
+}
 
 type Props = {
   instance: HermesInstanceRecord;
@@ -7,248 +58,374 @@ type Props = {
   onRunAction: (instance: HermesInstanceRecord, action: OperatorActionSummary) => void;
 };
 
+function statusDot(status: string) {
+  if (status === 'available' || status === 'healthy' || status === 'online' || status === 'succeeded') return 'dot-green';
+  if (status === 'limited' || status === 'warning' || status === 'degraded' || status === 'busy') return 'dot-yellow';
+  return 'dot-red';
+}
+
+function gaugeColor(pct: number): string {
+  if (pct < 55) return 'gauge-green';
+  if (pct < 78) return 'gauge-yellow';
+  return 'gauge-red';
+}
+
+function formatUptime(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+}
+
+// EKG heartbeat pattern (normalized 0–1)
+const EKG_PATTERN = [0.05, 0.08, 0.05, 0.06, 0.05, 0.55, 1, 0.55, 0.05, 0.15, 0.3, 0.08, 0.05, 0.05, 0.06, 0.05];
+
 export function ProMode({ instance, actionRuns, onRunAction }: Props) {
   const { snapshot, summary } = instance;
   const probeSummary = snapshot.probeSummary;
-  const stateDbSummary = probeSummary?.stateDb;
-  const recentStateDbSources = stateDbSummary?.recentSources ?? [];
-  const recentStateDbSessions = stateDbSummary?.recentSessionIds ?? [];
   const latestActionRun = getLatestActionRun(snapshot.actions, actionRuns);
   const prioritizedIncidents = prioritizeIncidents(snapshot.incidents);
   const incidentCounts = getIncidentCounts(snapshot.incidents);
-  const queueLoad = snapshot.queues.reduce((total, queue) => total + queue.depth, 0);
+  const queueLoad = snapshot.queues.reduce((total, q) => total + q.depth, 0);
+  const [chatInput, setChatInput] = useState('');
+  const [chatHistory, setChatHistory] = useState<ChatEntry[]>([]);
+  const [isChatting, setIsChatting] = useState(false);
+  const metrics = useLiveMetrics();
+  const terminalRef = useRef<HTMLDivElement>(null);
+
+  const handleChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const msg = chatInput.trim();
+    if (!msg || isChatting) return;
+    setChatInput('');
+    setIsChatting(true);
+
+    // Add user message
+    setChatHistory((prev) => [...prev, { role: 'user', text: msg }]);
+
+    // Placeholder for streaming agent response
+    setChatHistory((prev) => [...prev, { role: 'agent', text: '' }]);
+
+    await sendChatMessage(
+      summary.id,
+      msg,
+      (chunk) => {
+        setChatHistory((prev) => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last?.role === 'agent') {
+            updated[updated.length - 1] = { role: 'agent', text: last.text + (last.text ? '\n' : '') + chunk };
+          }
+          return updated;
+        });
+        setTimeout(() => {
+          if (terminalRef.current) terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+        }, 0);
+      },
+      () => setIsChatting(false),
+      (err) => {
+        setChatHistory((prev) => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last?.role === 'agent') {
+            updated[updated.length - 1] = { role: 'agent', text: `Error: ${err}` };
+          }
+          return updated;
+        });
+        setIsChatting(false);
+      },
+    );
+  };
+
+  // Terminal shows chat history OR last action output OR subagent status
+  const terminalLines: ChatEntry[] = chatHistory.length > 0
+    ? chatHistory.slice(-6)
+    : latestActionRun?.outputLines?.length
+      ? latestActionRun.outputLines.slice(-3).map((t) => ({ role: 'agent' as const, text: t }))
+      : snapshot.subagents.slice(0, 2).map((s) => ({ role: 'agent' as const, text: `${s.label} · ${s.status} · ${s.lastActivity}` }));
 
   return (
-    <section className="panel mode-panel pro-mode-panel">
-      <div className="module-grid pro-module-grid">
-        <article className="dashboard-card module-card module-card-wide hero-module">
-          <div className="card-heading">
-            <div>
-              <span className="eyebrow">Ops Overview</span>
-              <h3>{summary.name}</h3>
-            </div>
-            <span className={`severity-pill severity-pill-${summary.status}`}>{summary.status}</span>
+    <div className="ops-console">
+
+      {/* ── Vitals strip ─────────────────────────────────────────── */}
+      <div className="ops-vitals">
+        <div className={`vital-chip ${incidentCounts.critical > 0 ? 'vital-critical' : ''}`}>
+          <span>Incidents</span>
+          <strong>{snapshot.incidents.length}</strong>
+          <small>{incidentCounts.critical}c · {incidentCounts.warning}w</small>
+        </div>
+
+        <div className="vital-chip">
+          <span>Queue Load</span>
+          <strong>{queueLoad}</strong>
+          <small>{snapshot.queues.length} lanes</small>
+        </div>
+
+        <div className="vital-chip">
+          <span>Agents</span>
+          <strong>{snapshot.agents.length}</strong>
+          <small>{snapshot.subagents.length} sub</small>
+        </div>
+
+        <div className="vital-chip">
+          <span>Actions</span>
+          <strong style={{ color: snapshot.actions.filter((a) => a.availability === 'available').length > 0 ? 'var(--green)' : 'var(--text-muted)' }}>
+            {snapshot.actions.filter((a) => a.availability === 'available').length} ready
+          </strong>
+          <small>{formatActionTimestamp(latestActionRun?.updatedAt)}</small>
+        </div>
+
+        <div className="vital-chip vital-chip-wide">
+          <span>Transport</span>
+          <strong>{summary.connection.transport?.split(' ')[0] ?? '—'}</strong>
+          <small>{summary.connection.baseUrl ?? summary.connection.path ?? 'local'}</small>
+        </div>
+
+        {/* Live system metrics */}
+        <div className="vital-chip vital-gauge-chip">
+          <span>CPU <em className="gauge-sim">~sim</em></span>
+          <div className="gauge-track">
+            <div
+              className={`gauge-fill ${gaugeColor(metrics.cpu)}`}
+              style={{ width: `${metrics.cpu}%` }}
+            />
           </div>
+          <strong className={gaugeColor(metrics.cpu)}>{Math.round(metrics.cpu)}%</strong>
+        </div>
 
-          <div className="metric-row four-up">
-            <article className="metric-card accent metric-card-incident">
-              <span>Incident Stack</span>
-              <strong>{snapshot.incidents.length}</strong>
-              <small>{incidentCounts.critical} critical · {incidentCounts.warning} warning</small>
-            </article>
-            <article className="metric-card">
-              <span>Agents Live</span>
-              <strong>{snapshot.agents.length}</strong>
-              <small>{snapshot.subagents.length} subagents</small>
-            </article>
-            <article className="metric-card">
-              <span>Queue Load</span>
-              <strong>{queueLoad}</strong>
-              <small>{snapshot.queues.length} monitored lanes</small>
-            </article>
-            <article className="metric-card">
-              <span>Action Posture</span>
-              <strong>{snapshot.actions.filter((action) => action.availability === 'available').length} ready</strong>
-              <small>{formatActionTimestamp(latestActionRun?.updatedAt)}</small>
-            </article>
+        <div className="vital-chip vital-gauge-chip">
+          <span>RAM <em className="gauge-sim">~sim</em></span>
+          <div className="gauge-track">
+            <div
+              className={`gauge-fill ${gaugeColor(metrics.ram)}`}
+              style={{ width: `${metrics.ram}%` }}
+            />
           </div>
-        </article>
+          <strong className={gaugeColor(metrics.ram)}>{Math.round(metrics.ram)}%</strong>
+        </div>
 
-        <article className="dashboard-card module-card module-card-wide scroll-card">
-          <div className="card-heading">
-            <div>
-              <span className="eyebrow">Action Matrix</span>
-              <h3>Command Deck</h3>
-            </div>
-            <span className="status status-online">{summary.connection.transport}</span>
+        <div className="vital-chip vital-gauge-chip">
+          <span>Net I/O <em className="gauge-sim">~sim</em></span>
+          <div className="gauge-track">
+            <div
+              className="gauge-fill gauge-net"
+              style={{ width: `${metrics.net}%` }}
+            />
           </div>
+          <strong className="gauge-net-text">{Math.round(metrics.net)}%</strong>
+        </div>
 
-          <div className="ops-action-grid">
-            {snapshot.actions.map((action) => {
-              const run = actionRuns[action.id];
-              const tone = run?.status === 'failed' ? 'critical' : action.availability === 'available' ? 'available' : 'limited';
+        <div className="vital-chip vital-uptime">
+          <span>Uptime</span>
+          <strong className="uptime-value">{formatUptime(metrics.uptime)}</strong>
+          <small>session</small>
+        </div>
+      </div>
 
-              return (
-                <article key={action.id} className={`action-tile action-tile-${tone}`}>
-                  <div>
-                    <span className="action-tile-label">{action.commandLabel}</span>
-                    <strong>{action.label}</strong>
-                    <p>{run?.summary ?? action.note}</p>
-                  </div>
-                  <div className="action-tile-footer">
-                    <span className={`status status-${tone}`}>{run?.status ?? action.availability}</span>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      disabled={action.availability !== 'available' || run?.status === 'running'}
-                      onClick={() => onRunAction(instance, action)}
-                    >
-                      {run?.status === 'running' ? 'Running…' : 'Run'}
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
+      {/* ── Main grid ────────────────────────────────────────────── */}
+      <div className="ops-grid">
 
-          {latestActionRun?.executablePath ? <div className="event-strip">Executable · {latestActionRun.executablePath}</div> : null}
-        </article>
+        {/* Modules column */}
+        <div className="ops-modules">
+          <div className="ops-panel-label">Modules</div>
 
-        <article className="dashboard-card module-card scroll-card">
-          <div className="card-heading">
-            <div>
-              <span className="eyebrow">Incident Queue</span>
-              <h3>Priority Board</h3>
-            </div>
-            <span className="status status-warning">{prioritizedIncidents.length}</span>
-          </div>
-
-          <div className="incident-list">
-            {prioritizedIncidents.length > 0 ? (
-              prioritizedIncidents.map((incident, index) => (
-                <article key={incident.id} className={`incident-row ${index === 0 ? 'is-priority' : ''}`}>
-                  <div>
-                    <div className="incident-row-meta">
-                      <span className={`severity-pill severity-pill-${incident.severity}`}>{incident.severity}</span>
-                      <span className="incident-category">{incident.category}</span>
-                    </div>
-                    <strong>{incident.title}</strong>
-                    <p>{incident.summary}</p>
-                    <small>{incident.actionHint}</small>
-                  </div>
-                </article>
-              ))
-            ) : (
-              <div className="empty-state">No active incidents.</div>
-            )}
-          </div>
-        </article>
-
-        <article className="dashboard-card module-card scroll-card">
-          <div className="card-heading">
-            <div>
-              <span className="eyebrow">Fleet Runtime</span>
-              <h3>Agents & Queues</h3>
-            </div>
-            <span className="status status-available">live</span>
-          </div>
-
-          <div className="stack-list two-tone-list">
-            {snapshot.agents.map((agent) => (
-              <div key={agent.id} className="list-row capability-row">
-                <div>
-                  <strong>{agent.label}</strong>
-                  <p>{agent.role} · {agent.workspace}</p>
-                </div>
-                <span className={`status status-${agent.status}`}>{agent.status}</span>
+          {snapshot.capabilityReport.capabilities.map((cap) => (
+            <div key={cap.key} className="module-row">
+              <span className={`module-dot ${statusDot(cap.status)}`} />
+              <div className="module-row-body">
+                <span className="module-key">{cap.key}</span>
+                <span className="module-note">{cap.note}</span>
               </div>
-            ))}
-
-            {snapshot.queues.map((queue) => (
-              <div key={queue.label} className="list-row capability-row">
-                <div>
-                  <strong>{queue.label}</strong>
-                  <p>{queue.trend}</p>
-                </div>
-                <span className="queue-depth">{queue.depth}</span>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="dashboard-card module-card scroll-card">
-          <div className="card-heading">
-            <div>
-              <span className="eyebrow">Capability Matrix</span>
-              <h3>Availability</h3>
+              <span className={`status status-${cap.status}`}>{cap.status}</span>
             </div>
-            <span className="status status-limited">read-only</span>
-          </div>
+          ))}
 
-          <div className="stack-list">
-            {snapshot.capabilityReport.capabilities.map((capability) => (
-              <div key={capability.key} className="list-row capability-row">
-                <div>
-                  <strong>{capability.key}</strong>
-                  <p>{capability.note}</p>
-                </div>
-                <span className={`status status-${capability.status}`}>{capability.status}</span>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="dashboard-card module-card module-card-wide scroll-card">
-          <div className="card-heading">
-            <div>
-              <span className="eyebrow">Signal Readout</span>
-              <h3>Probe & Output</h3>
-            </div>
-            <span className="status status-online">{probeSummary?.readiness ?? 'mock'}</span>
-          </div>
+          <div className="ops-panel-divider" />
 
           {probeSummary ? (
-            <div className="probe-meta-grid compact-probe-grid">
-              <article className="metric-card">
-                <span>Readiness</span>
-                <strong>{probeSummary.readiness}</strong>
-                <small>{probeSummary.configuration}</small>
+            <>
+              <div className="module-row">
+                <span className="module-dot dot-green" />
+                <div className="module-row-body">
+                  <span className="module-key">probe</span>
+                  <span className="module-note">{probeSummary.readiness} · {probeSummary.configuration}</span>
+                </div>
+                <span className="status status-available">{probeSummary.activity.sessionCount} sess</span>
+              </div>
+              {probeSummary.stateDb ? (
+                <div className="module-row">
+                  <span className={`module-dot ${probeSummary.stateDb.recognized ? 'dot-green' : 'dot-yellow'}`} />
+                  <div className="module-row-body">
+                    <span className="module-key">state.db</span>
+                    <span className="module-note">
+                      {probeSummary.stateDb.recognized
+                        ? `${probeSummary.stateDb.tableCount} tables`
+                        : (probeSummary.stateDb.fallbackReason ?? 'limited schema')}
+                    </span>
+                  </div>
+                  <span className={`status status-${probeSummary.stateDb.recognized ? 'available' : 'limited'}`}>
+                    {probeSummary.stateDb.recognized ? 'ok' : 'limited'}
+                  </span>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div className="module-row">
+              <span className="module-dot dot-yellow" />
+              <div className="module-row-body">
+                <span className="module-key">probe</span>
+                <span className="module-note">not connected</span>
+              </div>
+              <span className="status status-limited">mock</span>
+            </div>
+          )}
+
+          <div className="ops-panel-divider" />
+
+          {snapshot.queues.map((queue) => (
+            <div key={queue.label} className="module-row">
+              <span className={`module-dot ${queue.depth === 0 ? 'dot-green' : queue.depth < 5 ? 'dot-yellow' : 'dot-red'}`} />
+              <div className="module-row-body">
+                <span className="module-key">{queue.label}</span>
+                <span className="module-note">{queue.trend}</span>
+              </div>
+              <strong className="module-depth">{queue.depth}</strong>
+            </div>
+          ))}
+        </div>
+
+        {/* Incidents column */}
+        <div className="ops-incidents">
+          <div className="ops-panel-label">
+            Incidents
+            {snapshot.incidents.length > 0 && (
+              <span className={`ops-incident-count ${incidentCounts.critical > 0 ? 'count-critical' : 'count-warning'}`}>
+                {snapshot.incidents.length}
+              </span>
+            )}
+          </div>
+
+          {prioritizedIncidents.length === 0 ? (
+            <div className="ops-all-clear">
+              <span className="all-clear-dot" />
+              All systems clear
+            </div>
+          ) : (
+            prioritizedIncidents.slice(0, 4).map((incident, i) => (
+              <article key={incident.id} className={`ops-incident ${i === 0 ? 'ops-incident-top' : ''}`}>
+                <div className="ops-incident-head">
+                  <span className={`severity-pill severity-pill-${incident.severity}`}>{incident.severity}</span>
+                  <span className="ops-incident-cat">{incident.category}</span>
+                </div>
+                <strong className="ops-incident-title">{incident.title}</strong>
+                <p className="ops-incident-hint">{incident.actionHint}</p>
               </article>
-              <article className="metric-card">
-                <span>Sessions</span>
-                <strong>{probeSummary.activity.sessionCount}</strong>
-                <small>{probeSummary.activity.lastSeenSource ?? 'No recent source'}</small>
-              </article>
-              <article className="metric-card">
-                <span>Profiles</span>
-                <strong>{probeSummary.profileCount}</strong>
-                <small>{probeSummary.naming.source}</small>
-              </article>
+            ))
+          )}
+        </div>
+
+        {/* Actions column */}
+        <div className="ops-actions">
+          <div className="ops-panel-label">Quick Fix</div>
+
+          {snapshot.actions.map((action) => {
+            const run = actionRuns[action.id];
+            const isRunning = run?.status === 'running';
+            const isReady = action.availability === 'available';
+
+            return (
+              <div key={action.id} className="ops-action-item">
+                <div className="ops-action-meta">
+                  <code className="ops-action-cmd">{action.commandLabel}</code>
+                  <span className={`status status-${isRunning ? 'running' : isReady ? 'available' : 'limited'}`}>
+                    {isRunning ? 'running' : isReady ? 'ready' : action.availability}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className={`ops-run-btn ${isReady ? 'ops-run-ready' : ''}`}
+                  disabled={!isReady || isRunning}
+                  onClick={() => onRunAction(instance, action)}
+                >
+                  {isRunning ? '⟳ Running…' : `▶ ${action.label}`}
+                </button>
+                {run?.summary ? <p className="ops-action-result">{run.summary}</p> : <p className="ops-action-result">{action.note}</p>}
+              </div>
+            );
+          })}
+
+          {latestActionRun ? (
+            <div className="ops-last-run">
+              <span>{formatActionTimestamp(latestActionRun.updatedAt)}</span>
+              <span className={latestActionRun.exitCode === 0 ? 'exit-ok' : 'exit-fail'}>
+                exit {latestActionRun.exitCode ?? '—'}
+              </span>
+              {latestActionRun.durationMs ? <span>{latestActionRun.durationMs}ms</span> : null}
             </div>
           ) : null}
 
-          <div className="stack-list">
-            {stateDbSummary ? (
-              <div className="list-row capability-row">
-                <div>
-                  <strong>state.db</strong>
-                  <p>
-                    {stateDbSummary.recognized
-                      ? `${stateDbSummary.tableCount} table(s) · ${recentStateDbSources.join(', ') || 'no recent sources'} · ${recentStateDbSessions.join(', ') || 'no session ids'}`
-                      : stateDbSummary.fallbackReason ?? 'Limited schema evidence only.'}
-                  </p>
-                </div>
-                <span className={`status status-${stateDbSummary.recognized ? 'available' : 'limited'}`}>
-                  {stateDbSummary.recognized ? 'inspected' : 'limited'}
-                </span>
-              </div>
-            ) : null}
+          <div className="ops-panel-divider" />
 
-            {probeSummary?.artifactSignals.map((signal) => (
-              <div key={signal.label} className="list-row capability-row">
-                <div>
-                  <strong>{signal.label}</strong>
-                  <p>{signal.detail ?? (signal.present ? 'Detected' : 'Missing')}</p>
-                </div>
-                <span className={`status status-${signal.present ? 'available' : 'unavailable'}`}>
-                  {signal.present ? 'present' : 'missing'}
-                </span>
+          <div className="ops-panel-label" style={{ marginTop: 4 }}>Agents</div>
+          {snapshot.agents.map((agent) => (
+            <div key={agent.id} className="module-row">
+              <span className={`module-dot ${statusDot(agent.status)}`} />
+              <div className="module-row-body">
+                <span className="module-key">{agent.label}</span>
+                <span className="module-note">{agent.lastActivity}</span>
               </div>
-            ))}
-
-            {(latestActionRun?.outputLines.length ?? 0) > 0 ? (
-              <ul className="mono-list compact-mono-list">
-                {latestActionRun?.outputLines.map((line, index) => (
-                  <li key={`${summary.id}-doctor-line-${index}`}>
-                    <strong>{line}</strong>
-                    <span>{latestActionRun.exitCode ?? '—'}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        </article>
+              <span className={`status status-${agent.status}`}>{agent.status}</span>
+            </div>
+          ))}
+        </div>
       </div>
-    </section>
+
+      {/* ── Terminal strip ────────────────────────────────────────── */}
+      <div className="ops-terminal">
+        {/* EKG heartbeat */}
+        <div className="ops-ekg" aria-hidden>
+          {EKG_PATTERN.map((h, i) => (
+            <span
+              key={i}
+              className="ekg-bar"
+              style={{
+                height: `${Math.round(h * 28)}px`,
+                animationDelay: `${i * 80}ms`,
+              }}
+            />
+          ))}
+          <span className="ekg-label">live</span>
+        </div>
+
+        <div className="ops-terminal-output ops-chat-output" ref={terminalRef}>
+          {terminalLines.map((entry, i) => (
+            <span
+              key={i}
+              className={`terminal-line ${entry.role === 'user' ? 'terminal-line-user' : 'terminal-line-agent'}`}
+            >
+              {entry.role === 'user' ? '› ' : '⬡ '}{entry.text}
+            </span>
+          ))}
+          {isChatting && <span className="terminal-line terminal-line-agent">⬡ <span className="terminal-cursor">▌</span></span>}
+          {!isChatting && chatHistory.length === 0 && <span className="terminal-cursor">▌</span>}
+        </div>
+
+        <form className="ops-terminal-input" onSubmit={(e) => { void handleChat(e); }}>
+          <span className="terminal-prompt">›</span>
+          <input
+            className="terminal-field"
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            placeholder={isChatting ? 'Hermes is thinking…' : 'ask hermes anything · hermes doctor · hermes status…'}
+            spellCheck={false}
+            autoComplete="off"
+            disabled={isChatting}
+          />
+          <button type="submit" className="terminal-send" disabled={isChatting}>
+            {isChatting ? '…' : 'Send'}
+          </button>
+        </form>
+      </div>
+
+    </div>
   );
 }
