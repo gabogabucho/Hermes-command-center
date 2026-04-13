@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSkin } from '../hooks/useSkin';
 import { invokeDoctor, invokeStatus, loadFleetSnapshot, type FleetLoadResult, type OperatorActionResponse } from '../adapters/probeAdapter';
 import type {
   DiscoverySuggestion,
@@ -240,6 +241,7 @@ function createInstanceFromSuggestion(suggestion: DiscoverySuggestion): HermesIn
 }
 
 export function App() {
+  const { activeSkin, skins, setSkin } = useSkin();
   const [fleet, setFleet] = useState<FleetSnapshot | null>(null);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>('');
   const [manualDraft, setManualDraft] = useState<ManualInstanceDraft>(emptyDraft);
@@ -457,6 +459,20 @@ export function App() {
             <span className="ops-meta-label">Source</span>
             <strong>{fleetSource?.generatedAt ? 'probe' : 'mock'}</strong>
           </span>
+        </div>
+
+        <div className="ops-skin-control" role="group" aria-label="Visual skin">
+          {skins.map((skin) => (
+            <button
+              key={skin.id}
+              type="button"
+              className={`ops-skin-btn skin-opt-${skin.id} ${activeSkin === skin.id ? 'is-active' : ''}`}
+              onClick={() => setSkin(skin.id)}
+              title={skin.description}
+            >
+              {skin.label}
+            </button>
+          ))}
         </div>
 
         <div className="ops-mode-control" role="group" aria-label="Surface mode">

@@ -1684,3 +1684,583 @@ h1, h2, h3, p { margin: 0; }
 
   .module-card-wide { grid-column: span 1; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SKIN ENGINE
+   Each skin is a [data-skin="<id>"] block that overrides CSS custom properties
+   and component styles. Applied on <html> via useSkin hook.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Skin switcher (ops-bar) ─────────────────────────────────────────── */
+.ops-skin-control {
+  display: flex;
+  border: 1px solid var(--border-mid);
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.ops-skin-btn {
+  padding: 5px 10px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-right: 1px solid var(--border);
+  transition: background 0.12s, color 0.12s;
+}
+
+.ops-skin-btn:last-child { border-right: none; }
+.ops-skin-btn:hover      { background: rgba(255,255,255,0.06); color: var(--text-primary); }
+
+.ops-skin-btn.is-active.skin-opt-amber { background: rgba(232,106,26,0.18); color: #ff8c40; }
+.ops-skin-btn.is-active.skin-opt-cyber { background: rgba(255,255,255,0.12); color: #fff; }
+.ops-skin-btn.is-active.skin-opt-matrix { background: rgba(0,255,65,0.12); color: #00ff41; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SKIN: CYBER  — pixel-perfect hacker terminal
+   ══════════════════════════════════════════════════════════════════════════ */
+
+[data-skin="cyber"] {
+  /* Palette */
+  --accent:        #ffffff;
+  --accent-hi:     #ffffff;
+  --accent-soft:   rgba(255, 255, 255, 0.10);
+  --accent-glow:   rgba(255, 255, 255, 0.20);
+  --accent-border: rgba(255, 255, 255, 0.35);
+
+  --surface-0: #000000;
+  --surface-1: #060606;
+  --surface-2: #0c0c0c;
+  --surface-3: #111111;
+  --surface-4: #181818;
+
+  --border:        rgba(255, 255, 255, 0.12);
+  --border-mid:    rgba(255, 255, 255, 0.25);
+  --border-strong: rgba(255, 255, 255, 0.45);
+
+  --text-primary: #e8e8e8;
+  --text-dim:     #aaaaaa;
+  --text-muted:   #555555;
+
+  --green:      #39ff14;
+  --green-bg:   rgba(57, 255, 20, 0.08);
+  --green-b:    rgba(57, 255, 20, 0.25);
+  --red:        #ff3333;
+  --red-bg:     rgba(255, 51, 51, 0.08);
+  --red-b:      rgba(255, 51, 51, 0.25);
+  --yellow:     #ffee00;
+  --yellow-bg:  rgba(255, 238, 0, 0.08);
+  --yellow-b:   rgba(255, 238, 0, 0.22);
+  --blue:       #00cfff;
+  --blue-bg:    rgba(0, 207, 255, 0.06);
+  --blue-b:     rgba(0, 207, 255, 0.20);
+
+  font-family: 'IBM Plex Mono', 'Fira Code', 'Courier New', monospace;
+}
+
+/* Body: pure black, scanlines overlay via pseudo-element */
+[data-skin="cyber"] body {
+  background: #000000;
+}
+
+/* Scanlines */
+[data-skin="cyber"] .ops-shell::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0, 0, 0, 0.10) 3px,
+    rgba(0, 0, 0, 0.10) 4px
+  );
+  pointer-events: none;
+  z-index: 9990;
+}
+
+/* Zero border-radius everywhere */
+[data-skin="cyber"] .ops-bar,
+[data-skin="cyber"] .ops-instance-select,
+[data-skin="cyber"] .ops-status-badge,
+[data-skin="cyber"] .ops-mode-control,
+[data-skin="cyber"] .ops-mode-btn,
+[data-skin="cyber"] .ops-skin-control,
+[data-skin="cyber"] .ops-skin-btn,
+[data-skin="cyber"] .ops-refresh-btn,
+[data-skin="cyber"] .ops-incident,
+[data-skin="cyber"] .ops-run-btn,
+[data-skin="cyber"] .terminal-send,
+[data-skin="cyber"] .pin-panel,
+[data-skin="cyber"] .pin-key,
+[data-skin="cyber"] .dashboard-card,
+[data-skin="cyber"] .panel,
+[data-skin="cyber"] .gauge-track,
+[data-skin="cyber"] .gauge-fill,
+[data-skin="cyber"] .severity-pill {
+  border-radius: 0 !important;
+}
+
+/* Ops bar: pure black top strip */
+[data-skin="cyber"] .ops-bar {
+  background: #000;
+  border-bottom-color: rgba(255, 255, 255, 0.25);
+}
+
+[data-skin="cyber"] .ops-logo {
+  background: none;
+  -webkit-background-clip: initial;
+  -webkit-text-fill-color: #ffffff;
+  background-clip: initial;
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.05em;
+}
+
+/* Corner bracket decorators on the 3 main panel columns */
+[data-skin="cyber"] .ops-modules,
+[data-skin="cyber"] .ops-incidents,
+[data-skin="cyber"] .ops-actions,
+[data-skin="cyber"] .ops-vitals {
+  position: relative;
+}
+
+[data-skin="cyber"] .ops-modules::before,
+[data-skin="cyber"] .ops-incidents::before,
+[data-skin="cyber"] .ops-actions::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 14px;
+  height: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.45);
+  border-left: 1px solid rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+  z-index: 1;
+}
+
+[data-skin="cyber"] .ops-modules::after,
+[data-skin="cyber"] .ops-incidents::after,
+[data-skin="cyber"] .ops-actions::after {
+  content: '';
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 14px;
+  height: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.45);
+  border-right: 1px solid rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Vitals strip */
+[data-skin="cyber"] .ops-vitals {
+  background: #000;
+  border-bottom-color: rgba(255, 255, 255, 0.20);
+}
+
+/* Vitals strip corner decorators (only top-left corner) */
+[data-skin="cyber"] .ops-vitals::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 10px;
+  height: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.35);
+  border-left: 1px solid rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+}
+
+/* Panel backgrounds */
+[data-skin="cyber"] .ops-modules  { background: #030303; }
+[data-skin="cyber"] .ops-incidents { background: #000; }
+[data-skin="cyber"] .ops-actions  { background: #030303; }
+
+/* Module rows: use hard dividers */
+[data-skin="cyber"] .module-row {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-skin="cyber"] .module-key {
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* Incident cards: sharp, no gradients */
+[data-skin="cyber"] .ops-incident {
+  background: #0a0a0a;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+[data-skin="cyber"] .ops-incident::before {
+  border-radius: 0;
+}
+
+[data-skin="cyber"] .ops-incident-top {
+  border-color: var(--yellow-b);
+  background: rgba(255, 238, 0, 0.04);
+}
+
+/* Gauge bars: block style */
+[data-skin="cyber"] .gauge-track {
+  background: rgba(255, 255, 255, 0.08);
+  height: 6px;
+}
+
+[data-skin="cyber"] .gauge-green  { background: #39ff14; }
+[data-skin="cyber"] .gauge-yellow { background: #ffee00; }
+[data-skin="cyber"] .gauge-red    { background: #ff3333; }
+[data-skin="cyber"] .gauge-net    { background: #00cfff; }
+
+/* EKG in white */
+[data-skin="cyber"] .ekg-bar    { background: #fff; }
+[data-skin="cyber"] .ekg-label  { color: #fff; }
+[data-skin="cyber"] .ops-ekg    { border-right-color: rgba(255,255,255,0.15); }
+
+/* Terminal area */
+[data-skin="cyber"] .ops-terminal {
+  background: #000;
+  border-top-color: rgba(255, 255, 255, 0.20);
+}
+
+[data-skin="cyber"] .ops-terminal-input {
+  border-top-color: rgba(255, 255, 255, 0.12);
+}
+
+[data-skin="cyber"] .terminal-prompt { color: #fff; }
+[data-skin="cyber"] .terminal-cursor { color: #fff; }
+[data-skin="cyber"] .terminal-field  { color: #e8e8e8; }
+[data-skin="cyber"] .terminal-send {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.30);
+  color: #fff;
+}
+[data-skin="cyber"] .terminal-send:hover { background: rgba(255, 255, 255, 0.16); }
+[data-skin="cyber"] .terminal-line-user  { color: #fff; }
+[data-skin="cyber"] .terminal-line-agent { color: #aaa; }
+
+/* Live dot */
+[data-skin="cyber"] .live-dot { background: #fff !important; }
+
+/* Run button */
+[data-skin="cyber"] .ops-run-btn.ops-run-ready {
+  border-color: rgba(57, 255, 20, 0.40);
+  color: #39ff14;
+}
+
+/* Mode buttons */
+[data-skin="cyber"] .ops-mode-btn.is-active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+/* Pin gate */
+[data-skin="cyber"] .pin-gate {
+  background: #000;
+}
+
+[data-skin="cyber"] .pin-bg-grid {
+  background-image:
+    linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+[data-skin="cyber"] .pin-panel {
+  background: #0a0a0a;
+  border-color: rgba(255, 255, 255, 0.30);
+  box-shadow: 0 0 40px rgba(255, 255, 255, 0.04), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+[data-skin="cyber"] .pin-title {
+  background: none;
+  -webkit-text-fill-color: #fff;
+  color: #fff;
+  letter-spacing: 0.12em;
+}
+
+[data-skin="cyber"] .pin-dot {
+  border-color: rgba(255, 255, 255, 0.30);
+}
+
+[data-skin="cyber"] .pin-dot-filled {
+  background: #fff;
+  border-color: #fff;
+  box-shadow: 0 0 10px rgba(255,255,255,0.5);
+}
+
+[data-skin="cyber"] .pin-key {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.03);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+[data-skin="cyber"] .pin-key:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.40);
+}
+
+[data-skin="cyber"] .pin-key-enter {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.45);
+  color: #fff;
+}
+
+/* Status pills: sharp borders */
+[data-skin="cyber"] .ops-status-badge {
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.06em;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SKIN: MATRIX — green phosphor on black
+   ══════════════════════════════════════════════════════════════════════════ */
+
+[data-skin="matrix"] {
+  --accent:        #00ff41;
+  --accent-hi:     #00ff41;
+  --accent-soft:   rgba(0, 255, 65, 0.10);
+  --accent-glow:   rgba(0, 255, 65, 0.30);
+  --accent-border: rgba(0, 255, 65, 0.35);
+
+  --surface-0: #000000;
+  --surface-1: #020702;
+  --surface-2: #040d04;
+  --surface-3: #071207;
+  --surface-4: #0a180a;
+
+  --border:        rgba(0, 255, 65, 0.08);
+  --border-mid:    rgba(0, 255, 65, 0.18);
+  --border-strong: rgba(0, 255, 65, 0.35);
+
+  --text-primary: #a0ffb0;
+  --text-dim:     #3ddb5e;
+  --text-muted:   #1a5c28;
+
+  --green:      #00ff41;
+  --green-bg:   rgba(0, 255, 65, 0.08);
+  --green-b:    rgba(0, 255, 65, 0.25);
+  --red:        #ff4444;
+  --red-bg:     rgba(255, 68, 68, 0.08);
+  --red-b:      rgba(255, 68, 68, 0.24);
+  --yellow:     #aaff00;
+  --yellow-bg:  rgba(170, 255, 0, 0.08);
+  --yellow-b:   rgba(170, 255, 0, 0.22);
+  --blue:       #00ffcc;
+  --blue-bg:    rgba(0, 255, 204, 0.06);
+  --blue-b:     rgba(0, 255, 204, 0.18);
+
+  font-family: 'IBM Plex Mono', 'Fira Code', 'Courier New', monospace;
+}
+
+[data-skin="matrix"] body {
+  background: #000000;
+}
+
+/* Scanlines — matrix green tint */
+[data-skin="matrix"] .ops-shell::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0, 20, 5, 0.15) 3px,
+    rgba(0, 20, 5, 0.15) 4px
+  );
+  pointer-events: none;
+  z-index: 9990;
+}
+
+/* Zero border-radius */
+[data-skin="matrix"] .ops-bar,
+[data-skin="matrix"] .ops-instance-select,
+[data-skin="matrix"] .ops-status-badge,
+[data-skin="matrix"] .ops-mode-control,
+[data-skin="matrix"] .ops-mode-btn,
+[data-skin="matrix"] .ops-skin-control,
+[data-skin="matrix"] .ops-skin-btn,
+[data-skin="matrix"] .ops-refresh-btn,
+[data-skin="matrix"] .ops-incident,
+[data-skin="matrix"] .ops-run-btn,
+[data-skin="matrix"] .terminal-send,
+[data-skin="matrix"] .pin-panel,
+[data-skin="matrix"] .pin-key,
+[data-skin="matrix"] .dashboard-card,
+[data-skin="matrix"] .panel,
+[data-skin="matrix"] .gauge-track,
+[data-skin="matrix"] .gauge-fill,
+[data-skin="matrix"] .severity-pill {
+  border-radius: 0 !important;
+}
+
+/* Ops bar */
+[data-skin="matrix"] .ops-bar {
+  background: #000;
+  border-bottom: 1px solid rgba(0, 255, 65, 0.22);
+}
+
+[data-skin="matrix"] .ops-logo {
+  background: none;
+  -webkit-background-clip: initial;
+  -webkit-text-fill-color: #00ff41;
+  background-clip: initial;
+  font-family: 'IBM Plex Mono', monospace;
+  text-shadow: 0 0 14px rgba(0, 255, 65, 0.7);
+}
+
+/* Corner brackets */
+[data-skin="matrix"] .ops-modules,
+[data-skin="matrix"] .ops-incidents,
+[data-skin="matrix"] .ops-actions,
+[data-skin="matrix"] .ops-vitals {
+  position: relative;
+}
+
+[data-skin="matrix"] .ops-modules::before,
+[data-skin="matrix"] .ops-incidents::before,
+[data-skin="matrix"] .ops-actions::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 14px;
+  height: 14px;
+  border-top: 1px solid rgba(0, 255, 65, 0.55);
+  border-left: 1px solid rgba(0, 255, 65, 0.55);
+  pointer-events: none;
+  z-index: 1;
+}
+
+[data-skin="matrix"] .ops-modules::after,
+[data-skin="matrix"] .ops-incidents::after,
+[data-skin="matrix"] .ops-actions::after {
+  content: '';
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 14px;
+  height: 14px;
+  border-bottom: 1px solid rgba(0, 255, 65, 0.55);
+  border-right: 1px solid rgba(0, 255, 65, 0.55);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Panel backgrounds */
+[data-skin="matrix"] .ops-vitals   { background: #000; border-bottom-color: rgba(0,255,65,0.18); }
+[data-skin="matrix"] .ops-modules  { background: #010501; }
+[data-skin="matrix"] .ops-incidents { background: #000; }
+[data-skin="matrix"] .ops-actions  { background: #010501; }
+
+/* Gauge bars */
+[data-skin="matrix"] .gauge-track  { background: rgba(0,255,65,0.06); }
+[data-skin="matrix"] .gauge-green  { background: #00ff41; box-shadow: 0 0 8px rgba(0,255,65,0.5); }
+[data-skin="matrix"] .gauge-yellow { background: #aaff00; }
+[data-skin="matrix"] .gauge-red    { background: #ff4444; }
+[data-skin="matrix"] .gauge-net    { background: #00ffcc; }
+
+/* EKG */
+[data-skin="matrix"] .ekg-bar   { background: #00ff41; box-shadow: 0 0 4px rgba(0,255,65,0.7); }
+[data-skin="matrix"] .ekg-label { color: #00ff41; text-shadow: 0 0 6px rgba(0,255,65,0.7); }
+[data-skin="matrix"] .ops-ekg   { border-right-color: rgba(0,255,65,0.15); }
+
+/* Terminal */
+[data-skin="matrix"] .ops-terminal { background: #000; border-top-color: rgba(0,255,65,0.18); }
+[data-skin="matrix"] .terminal-prompt { color: #00ff41; text-shadow: 0 0 8px rgba(0,255,65,0.8); }
+[data-skin="matrix"] .terminal-cursor { color: #00ff41; text-shadow: 0 0 6px rgba(0,255,65,0.9); }
+[data-skin="matrix"] .terminal-field  { color: #a0ffb0; }
+[data-skin="matrix"] .terminal-send {
+  background: rgba(0,255,65,0.08);
+  border-color: rgba(0,255,65,0.30);
+  color: #00ff41;
+}
+[data-skin="matrix"] .terminal-line-user  { color: #00ff41; text-shadow: 0 0 6px rgba(0,255,65,0.5); }
+[data-skin="matrix"] .terminal-line-agent { color: #3ddb5e; }
+
+/* Live dot */
+[data-skin="matrix"] .live-dot {
+  background: #00ff41 !important;
+  box-shadow: 0 0 8px rgba(0,255,65,0.8) !important;
+}
+
+/* Module dots */
+[data-skin="matrix"] .dot-green { background: #00ff41; box-shadow: 0 0 8px rgba(0,255,65,0.8); }
+
+/* Incident cards */
+[data-skin="matrix"] .ops-incident {
+  background: #030903;
+  border-color: rgba(0,255,65,0.14);
+}
+
+/* Run button */
+[data-skin="matrix"] .ops-run-btn.ops-run-ready {
+  border-color: rgba(0,255,65,0.40);
+  color: #00ff41;
+  text-shadow: 0 0 6px rgba(0,255,65,0.5);
+}
+
+/* Mode buttons */
+[data-skin="matrix"] .ops-mode-btn.is-active {
+  background: rgba(0,255,65,0.12);
+  color: #00ff41;
+}
+
+/* Pin gate */
+[data-skin="matrix"] .pin-gate { background: #000; }
+
+[data-skin="matrix"] .pin-bg-grid {
+  background-image:
+    linear-gradient(rgba(0,255,65,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,65,0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+[data-skin="matrix"] .pin-panel {
+  background: #030903;
+  border-color: rgba(0,255,65,0.30);
+  box-shadow: 0 0 40px rgba(0,255,65,0.06), inset 0 1px 0 rgba(0,255,65,0.05);
+}
+
+[data-skin="matrix"] .pin-title {
+  background: none;
+  -webkit-text-fill-color: #00ff41;
+  color: #00ff41;
+  text-shadow: 0 0 12px rgba(0,255,65,0.8);
+}
+
+[data-skin="matrix"] .pin-time {
+  color: #00ff41;
+  text-shadow: 0 0 20px rgba(0,255,65,0.5);
+}
+
+[data-skin="matrix"] .pin-dot { border-color: rgba(0,255,65,0.30); }
+[data-skin="matrix"] .pin-dot-filled {
+  background: #00ff41;
+  border-color: #00ff41;
+  box-shadow: 0 0 12px rgba(0,255,65,0.8);
+}
+
+[data-skin="matrix"] .pin-key {
+  border-color: rgba(0,255,65,0.18);
+  background: rgba(0,255,65,0.03);
+  color: #a0ffb0;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+[data-skin="matrix"] .pin-key:hover {
+  background: rgba(0,255,65,0.09);
+  border-color: rgba(0,255,65,0.40);
+}
+
+[data-skin="matrix"] .pin-key-enter {
+  background: rgba(0,255,65,0.10);
+  border-color: rgba(0,255,65,0.45);
+  color: #00ff41;
+}
