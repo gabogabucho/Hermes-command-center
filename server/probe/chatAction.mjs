@@ -25,6 +25,23 @@ function toLines(raw) {
     .filter(Boolean);
 }
 
+// Filter out hermes startup banner, session info, and other boilerplate
+function isBoilerplate(line) {
+  // Box-drawing / ASCII art borders
+  if (/^[╭╮╰╯│╔╗╚╝═║▀▄█░▒▓\s]+$/.test(line)) return true;
+  // Horizontal rule lines (8+ box chars or dashes)
+  if (/^[─━═\-]{8,}/.test(line)) return true;
+  // Section headers like "─  ⚕ Hermes  ────"
+  if (/^─\s+⚕/.test(line)) return true;
+  // Common boilerplate prefixes
+  if (/^(Query:|Initializing agent|Resume this session with:|hermes --resume|Session:\s|Duration:\s|Messages:\s|\(and \d+ more)/.test(line)) return true;
+  // Available Tools/Skills section headers inside the startup box
+  if (/^(Available Tools|Available Skills|\d+ tools.*skills)/.test(line)) return true;
+  // Braille/block art patterns from the logo
+  if (/[⠀⠁⠂⠃⠄⠅⠆⠇⠈⠉⠊⠋⠌⠍⠎⠏]/.test(line)) return true;
+  return false;
+}
+
 /**
  * Stream a hermes chat response as Server-Sent Events.
  * @param {string} instanceId
@@ -76,7 +93,7 @@ export async function streamChatResponse(instanceId, message, sessionName, respo
 
   proc.stdout.on('data', (chunk) => {
     for (const line of toLines(chunk)) {
-      sendSseChunk(response, line);
+      if (!isBoilerplate(line)) sendSseChunk(response, line);
     }
   });
 
