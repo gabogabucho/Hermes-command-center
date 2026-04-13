@@ -39,8 +39,9 @@ function isBoilerplate(line) {
   if (/^(Query:|Initializing agent|Resume this session with:|hermes --resume|Session:\s|Duration:\s|Messages:\s)/.test(line)) return true;
   // Braille art characters from the ASCII logo
   if (/[⠀⠁⠂⠃⠄⠅⠆⠇⠈⠉⠊⠋⠌⠍⠎⠏⠐⠑⠒⠓⠔⠕⠖⠗⠘⠙⠚⠛⠜⠝⠞⠟⠠⠡⠢⠣⠤⠥⠦⠧⠨⠩⠪⠫⠬⠭⠮⠯⠰⠱⠲⠳⠴⠵⠶⠷⠸⠹⠺⠻⠼⠽⠾⠿]/.test(line)) return true;
-  // Block art from the ASCII logo
-  if (/^[█▀▄░▒▓\s]+$/.test(line)) return true;
+  // Block art from the ASCII logo (lines starting with █ are title art)
+  if (/^█/.test(line)) return true;
+  if (/^[▀▄░▒▓\s]+$/.test(line)) return true;
   return false;
 }
 
