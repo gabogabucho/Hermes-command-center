@@ -1423,30 +1423,29 @@ h1, h2, h3, p { margin: 0; }
   font-variant-numeric: tabular-nums;
 }
 
-/* ── EKG heartbeat ───────────────────────────────────────────────────── */
-@keyframes ekg-pulse {
-  0%, 100% { opacity: 0.25; transform: scaleY(0.7); }
-  50%       { opacity: 1;    transform: scaleY(1); }
-}
-
+/* ── ECG pulse line ──────────────────────────────────────────────────── */
 .ops-ekg {
   display: flex;
-  align-items: flex-end;
-  gap: 2px;
-  padding: 0 14px 0 16px;
+  flex-direction: column;
   height: 100%;
+  width: 160px;
   flex-shrink: 0;
   border-right: 1px solid var(--border);
+  overflow: hidden;
+  padding: 6px 0 2px;
 }
 
-.ekg-bar {
+.ekg-svg {
+  flex: 1;
+  width: 100%;
   display: block;
-  width: 3px;
-  border-radius: 2px 2px 0 0;
-  background: var(--accent);
-  opacity: 0.3;
-  animation: ekg-pulse 2.6s ease-in-out infinite;
-  transform-origin: bottom;
+  min-height: 0;
+}
+
+.ekg-line {
+  stroke: var(--accent);
+  opacity: 0.85;
+  filter: drop-shadow(0 0 2px var(--accent));
 }
 
 .ekg-label {
@@ -1455,10 +1454,10 @@ h1, h2, h3, p { margin: 0; }
   text-transform: uppercase;
   letter-spacing: 0.14em;
   color: var(--accent);
-  opacity: 0.6;
-  padding-left: 6px;
+  opacity: 0.55;
+  text-align: center;
   padding-bottom: 2px;
-  align-self: flex-end;
+  flex-shrink: 0;
 }
 
 /* ── PIN Gate ────────────────────────────────────────────────────────── */
@@ -1956,8 +1955,8 @@ h1, h2, h3, p { margin: 0; }
 [data-skin="cyber"] .gauge-red    { background: #ff3333; }
 [data-skin="cyber"] .gauge-net    { background: #00cfff; }
 
-/* EKG in white */
-[data-skin="cyber"] .ekg-bar    { background: #fff; }
+/* ECG line in white */
+[data-skin="cyber"] .ekg-line   { stroke: #fff; filter: none; }
 [data-skin="cyber"] .ekg-label  { color: #fff; }
 [data-skin="cyber"] .ops-ekg    { border-right-color: rgba(255,255,255,0.15); }
 
@@ -2205,8 +2204,8 @@ h1, h2, h3, p { margin: 0; }
 [data-skin="matrix"] .gauge-red    { background: #ff4444; }
 [data-skin="matrix"] .gauge-net    { background: #00ffcc; }
 
-/* EKG */
-[data-skin="matrix"] .ekg-bar   { background: #00ff41; box-shadow: 0 0 4px rgba(0,255,65,0.7); }
+/* ECG line in green phosphor */
+[data-skin="matrix"] .ekg-line  { stroke: #00ff41; filter: drop-shadow(0 0 3px rgba(0,255,65,0.9)); }
 [data-skin="matrix"] .ekg-label { color: #00ff41; text-shadow: 0 0 6px rgba(0,255,65,0.7); }
 [data-skin="matrix"] .ops-ekg   { border-right-color: rgba(0,255,65,0.15); }
 

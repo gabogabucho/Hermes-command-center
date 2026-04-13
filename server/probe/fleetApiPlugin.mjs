@@ -2,6 +2,7 @@ import { collectHermesFleetSnapshot } from './fleetProbe.mjs';
 import { collectProfilesSnapshot } from './profileProbe.mjs';
 import { runDoctorAction, runStatusAction } from './doctorAction.mjs';
 import { streamChatResponse } from './chatAction.mjs';
+import { collectSystemMetrics } from './systemProbe.mjs';
 
 function sendJson(response, statusCode, payload) {
   response.statusCode = statusCode;
@@ -131,6 +132,18 @@ async function handleProfilesRequest(_request, response) {
   }
 }
 
+async function handleSystemRequest(_request, response) {
+  try {
+    const payload = await collectSystemMetrics();
+    sendJson(response, 200, payload);
+  } catch (error) {
+    sendJson(response, 500, {
+      source: 'system-probe',
+      error: error instanceof Error ? error.message : 'System probe failure.',
+    });
+  }
+}
+
 async function handleChatRequest(request, response) {
   if (request.method !== 'POST') {
     response.setHeader('Allow', 'POST');
@@ -181,6 +194,9 @@ function registerFleetRoutes(server) {
   });
   server.middlewares.use('/api/profiles', (request, response) => {
     void handleProfilesRequest(request, response);
+  });
+  server.middlewares.use('/api/system', (request, response) => {
+    void handleSystemRequest(request, response);
   });
   server.middlewares.use('/api/chat', (request, response) => {
     void handleChatRequest(request, response);

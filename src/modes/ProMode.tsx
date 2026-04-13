@@ -77,8 +77,44 @@ function formatUptime(seconds: number): string {
   return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
 }
 
-// EKG heartbeat pattern (normalized 0–1)
-const EKG_PATTERN = [0.05, 0.08, 0.05, 0.06, 0.05, 0.55, 1, 0.55, 0.05, 0.15, 0.3, 0.08, 0.05, 0.05, 0.06, 0.05];
+// ECG waveform: 4 beats at x-offsets 0, 100, 200, 300 (100-unit period, viewBox 0 0 200 80)
+// Baseline y=65. P wave (y≈55), QRS spike (y=8→72), T wave (y≈42).
+const ECG_PATH =
+  'M0,65 L15,65 Q18,55 22,65 L38,65 L40,68 L44,8 L48,72 L52,65 L65,65 Q72,42 82,65 L100,65 ' +
+  'L115,65 Q118,55 122,65 L138,65 L140,68 L144,8 L148,72 L152,65 L165,65 Q172,42 182,65 L200,65 ' +
+  'L215,65 Q218,55 222,65 L238,65 L240,68 L244,8 L248,72 L252,65 L265,65 Q272,42 282,65 L300,65 ' +
+  'L315,65 Q318,55 322,65 L338,65 L340,68 L344,8 L348,72 L352,65 L365,65 Q372,42 382,65 L400,65';
+
+function EkgLine() {
+  return (
+    <div className="ops-ekg" aria-hidden>
+      <svg
+        className="ekg-svg"
+        viewBox="0 0 200 80"
+        preserveAspectRatio="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <g>
+          <animateTransform
+            attributeName="transform"
+            type="translate"
+            from="0 0"
+            to="-100 0"
+            dur="1.4s"
+            repeatCount="indefinite"
+          />
+          <path className="ekg-line" d={ECG_PATH} fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </g>
+      </svg>
+      <span className="ekg-label">live</span>
+    </div>
+  );
+}
+
+function formatNet(kbps: number): string {
+  if (kbps < 1000) return `${kbps}kb/s`;
+  return `${(kbps / 1024).toFixed(1)}Mb/s`;
+}
 
 export function ProMode({ instance, actionRuns, onRunAction }: Props) {
   const { snapshot, summary } = instance;
@@ -184,42 +220,33 @@ export function ProMode({ instance, actionRuns, onRunAction }: Props) {
 
         {/* Live system metrics */}
         <div className="vital-chip vital-gauge-chip">
-          <span>CPU <em className="gauge-sim">~sim</em></span>
+          <span>CPU {!metrics.isReal && <em className="gauge-sim">~sim</em>}</span>
           <div className="gauge-track">
-            <div
-              className={`gauge-fill ${gaugeColor(metrics.cpu)}`}
-              style={{ width: `${metrics.cpu}%` }}
-            />
+            <div className={`gauge-fill ${gaugeColor(metrics.cpu)}`} style={{ width: `${metrics.cpu}%` }} />
           </div>
           <strong className={gaugeColor(metrics.cpu)}>{Math.round(metrics.cpu)}%</strong>
         </div>
 
         <div className="vital-chip vital-gauge-chip">
-          <span>RAM <em className="gauge-sim">~sim</em></span>
+          <span>RAM {!metrics.isReal && <em className="gauge-sim">~sim</em>}</span>
           <div className="gauge-track">
-            <div
-              className={`gauge-fill ${gaugeColor(metrics.ram)}`}
-              style={{ width: `${metrics.ram}%` }}
-            />
+            <div className={`gauge-fill ${gaugeColor(metrics.ram)}`} style={{ width: `${metrics.ram}%` }} />
           </div>
           <strong className={gaugeColor(metrics.ram)}>{Math.round(metrics.ram)}%</strong>
         </div>
 
         <div className="vital-chip vital-gauge-chip">
-          <span>Net I/O <em className="gauge-sim">~sim</em></span>
+          <span>Net I/O {!metrics.isReal && <em className="gauge-sim">~sim</em>}</span>
           <div className="gauge-track">
-            <div
-              className="gauge-fill gauge-net"
-              style={{ width: `${metrics.net}%` }}
-            />
+            <div className="gauge-fill gauge-net" style={{ width: `${Math.min(100, metrics.netKbps / 1000)}%` }} />
           </div>
-          <strong className="gauge-net-text">{Math.round(metrics.net)}%</strong>
+          <strong className="gauge-net-text">{formatNet(metrics.netKbps)}</strong>
         </div>
 
         <div className="vital-chip vital-uptime">
           <span>Uptime</span>
-          <strong className="uptime-value">{formatUptime(metrics.uptime)}</strong>
-          <small>session</small>
+          <strong className="uptime-value">{formatUptime(metrics.uptimeSeconds)}</strong>
+          <small>{metrics.isReal ? 'system' : 'session'}</small>
         </div>
       </div>
 
@@ -434,20 +461,7 @@ export function ProMode({ instance, actionRuns, onRunAction }: Props) {
 
       {/* ── Terminal strip ────────────────────────────────────────── */}
       <div className="ops-terminal">
-        {/* EKG heartbeat */}
-        <div className="ops-ekg" aria-hidden>
-          {EKG_PATTERN.map((h, i) => (
-            <span
-              key={i}
-              className="ekg-bar"
-              style={{
-                height: `${Math.round(h * 28)}px`,
-                animationDelay: `${i * 80}ms`,
-              }}
-            />
-          ))}
-          <span className="ekg-label">live</span>
-        </div>
+        <EkgLine />
 
         <div className="ops-terminal-body">
           <div className="ops-terminal-output ops-chat-output" ref={terminalRef}>
