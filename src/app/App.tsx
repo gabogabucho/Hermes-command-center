@@ -9,7 +9,7 @@ import type {
   OperatorActionSummary,
 } from '../adapters/types';
 import { LiteMode } from '../modes/LiteMode';
-import type { ActionRunState } from '../modes/panelModel';
+import { getIncidentCounts, type ActionRunState } from '../modes/panelModel';
 import { ProMode } from '../modes/ProMode';
 
 type SurfaceMode = 'lite' | 'pro';
@@ -307,13 +307,10 @@ export function App() {
 
   if (!fleet || !selectedInstance) {
     return (
-      <main className="shell">
-        <section className="hero-panel loading-panel">
-          <div>
-            <span className="eyebrow">Hermes Command Center</span>
-            <h1>Loading command surface…</h1>
-            <p className="lede">Resolving the standalone local probe adapter with mock fallback.</p>
-          </div>
+      <main className="shell loading-shell">
+        <section className="dashboard-card loading-card">
+          <span className="eyebrow">Hermes Command Center</span>
+          <h1>Loading command dashboard…</h1>
         </section>
       </main>
     );
@@ -351,9 +348,7 @@ export function App() {
 
       return {
         instances: [...currentFleet.instances, instance],
-        discoverySuggestions: currentFleet.discoverySuggestions.filter(
-          (candidate) => candidate.id !== suggestion.id,
-        ),
+        discoverySuggestions: currentFleet.discoverySuggestions.filter((candidate) => candidate.id !== suggestion.id),
       };
     });
 
@@ -418,257 +413,267 @@ export function App() {
   };
 
   const selectedActionRuns = actionRunsByInstance[selectedInstance.summary.id] ?? {};
+  const incidentCounts = getIncidentCounts(selectedInstance.snapshot.incidents);
+  const queueDepth = selectedInstance.snapshot.queues.reduce((total, queue) => total + queue.depth, 0);
+  const availableActionCount = selectedInstance.snapshot.actions.filter((action) => action.availability === 'available').length;
+  const latestRun = Object.values(selectedActionRuns)
+    .filter((run): run is ActionRunState => Boolean(run))
+    .sort((left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0))[0];
 
   return (
-    <main className="shell">
-      <section className="hero-panel shell-banner">
-        <div>
+    <main className="shell app-shell">
+      <header className="dashboard-card topbar-card">
+        <div className="brand-block">
           <span className="eyebrow">Hermes Command Center</span>
-          <h1>Operational command dashboard for live Hermes installs.</h1>
-          <p className="lede">
-            One normalized fleet model powers Pro dashboards for larger displays and Lite dashboards
-            for monochrome or lower-capability hardware.
-          </p>
+          <h1>Command Dashboard</h1>
         </div>
 
-        <div className="hero-meta">
-          <div className="meta-card">
-            <span>Data source</span>
-            <strong>{fleetSource?.label ?? 'Loading…'}</strong>
-            <small>{fleetSource?.detail ?? 'Resolving local probe adapter.'}</small>
-          </div>
-          <div className="meta-card">
-            <span>Selected instance</span>
+        <div className="topbar-kpis">
+          <div className="kpi-chip">
+            <span>Instance</span>
             <strong>{selectedInstance.summary.name}</strong>
-            <small>
-              {selectedInstance.summary.environment} · {selectedInstance.summary.status}
-            </small>
           </div>
-          <div className="meta-card">
-            <span>Fleet model</span>
-            <strong>{fleet.instances.length} registered instances</strong>
-            <small>{fleet.discoverySuggestions.length} discovery suggestions queued</small>
+          <div className="kpi-chip">
+            <span>Incidents</span>
+            <strong>{selectedInstance.snapshot.incidents.length}</strong>
           </div>
-          <div className="meta-card meta-card-action">
-            <span>Surface contract</span>
-            <strong>{effectiveSurfaceMode === 'pro' ? 'Pro recommended' : 'Lite recommended'}</strong>
-            <small>
-              {surfaceOverride === 'auto'
-                ? `Auto-selected from ${surfaceSelection.reason}.`
-                : `Manual override active. Auto mode would choose ${surfaceSelection.mode}.`}
-            </small>
-            <div className="segmented-control" role="group" aria-label="Surface selection override">
-              <button
-                type="button"
-                className={`segmented-button ${surfaceOverride === 'auto' ? 'is-active' : ''}`}
-                onClick={() => setSurfaceOverride('auto')}
-              >
-                Auto
-              </button>
-              <button
-                type="button"
-                className={`segmented-button ${surfaceOverride === 'lite' ? 'is-active' : ''}`}
-                onClick={() => setSurfaceOverride('lite')}
-              >
-                Lite
-              </button>
-              <button
-                type="button"
-                className={`segmented-button ${surfaceOverride === 'pro' ? 'is-active' : ''}`}
-                onClick={() => setSurfaceOverride('pro')}
-              >
-                Pro
-              </button>
-            </div>
+          <div className="kpi-chip">
+            <span>Actions Ready</span>
+            <strong>{availableActionCount}</strong>
           </div>
-          <div className="meta-card meta-card-action">
-            <span>Probe refresh</span>
-            <strong>{fleetSource?.generatedAt ? 'Snapshot captured' : 'Fallback active'}</strong>
-            <small>{fleetSource?.generatedAt ?? 'Mock data stays available when probe data is absent.'}</small>
-            <button type="button" className="secondary-button inline-button" onClick={() => void refreshFleet()}>
-              {isRefreshing ? 'Refreshing…' : 'Refresh probe'}
+          <div className="kpi-chip">
+            <span>Fleet</span>
+            <strong>{fleet.instances.length}</strong>
+          </div>
+        </div>
+
+        <div className="topbar-actions">
+          <div className="segmented-control" role="group" aria-label="Surface selection override">
+            <button
+              type="button"
+              className={`segmented-button ${surfaceOverride === 'auto' ? 'is-active' : ''}`}
+              onClick={() => setSurfaceOverride('auto')}
+            >
+              Auto
+            </button>
+            <button
+              type="button"
+              className={`segmented-button ${surfaceOverride === 'lite' ? 'is-active' : ''}`}
+              onClick={() => setSurfaceOverride('lite')}
+            >
+              Lite
+            </button>
+            <button
+              type="button"
+              className={`segmented-button ${surfaceOverride === 'pro' ? 'is-active' : ''}`}
+              onClick={() => setSurfaceOverride('pro')}
+            >
+              Pro
             </button>
           </div>
+
+          <button type="button" className="secondary-button" onClick={() => void refreshFleet()}>
+            {isRefreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
         </div>
-      </section>
+      </header>
 
       <section className="dashboard-layout">
-        <div className="control-column">
-          <article className="panel fleet-panel fleet-panel-primary">
-          <div className="panel-header">
-            <div>
-              <span className="eyebrow">Command scope</span>
-              <h2>Selected instance</h2>
+        <aside className="command-rail">
+          <article className="dashboard-card rail-card status-card">
+            <div className="card-heading compact-heading">
+              <div>
+                <span className="eyebrow">Scope</span>
+                <h2>{selectedInstance.summary.name}</h2>
+              </div>
+              <span className={`severity-pill severity-pill-${selectedInstance.summary.status}`}>
+                {selectedInstance.summary.status}
+              </span>
             </div>
-            <span className={`badge badge-${selectedInstance.summary.status}`}>
-              {selectedInstance.summary.status}
-            </span>
-          </div>
 
-          <label className="field-label" htmlFor="instance-selector">
-            Current command target
-          </label>
-          <select
-            id="instance-selector"
-            className="field-input"
-            value={selectedInstance.summary.id}
-            onChange={(event) => setSelectedInstanceId(event.target.value)}
-          >
-            {fleet.instances.map((instance) => (
-              <option key={instance.summary.id} value={instance.summary.id}>
-                {instance.summary.name} — {instance.summary.environment}
-              </option>
-            ))}
-          </select>
+            <select
+              id="instance-selector"
+              className="field-input"
+              value={selectedInstance.summary.id}
+              onChange={(event) => setSelectedInstanceId(event.target.value)}
+            >
+              {fleet.instances.map((instance) => (
+                <option key={instance.summary.id} value={instance.summary.id}>
+                  {instance.summary.name} — {instance.summary.environment}
+                </option>
+              ))}
+            </select>
 
-          <div className="registry-compact-card">
-            <strong>{selectedInstance.snapshot.installation.name}</strong>
-            <p>{selectedInstance.snapshot.installation.target}</p>
-            <small>
-              {selectedInstance.summary.connection.baseUrl ?? selectedInstance.summary.connection.path ?? 'No endpoint yet'}
-            </small>
-          </div>
-        </article>
-
-        <article className="panel fleet-panel">
-          <div className="panel-header">
-            <div>
-              <span className="eyebrow">Fleet registry</span>
-              <h2>Registered command targets</h2>
+            <div className="mini-stat-grid">
+              <div className="mini-stat">
+                <span>Critical</span>
+                <strong>{incidentCounts.critical}</strong>
+              </div>
+              <div className="mini-stat">
+                <span>Queue Load</span>
+                <strong>{queueDepth}</strong>
+              </div>
+              <div className="mini-stat">
+                <span>Agents</span>
+                <strong>{selectedInstance.snapshot.agents.length}</strong>
+              </div>
+              <div className="mini-stat">
+                <span>Mode</span>
+                <strong>{effectiveSurfaceMode}</strong>
+              </div>
             </div>
-            <span className="badge badge-pro">Normalized</span>
-          </div>
 
-          <div className="registry-list">
-            {fleet.instances.map((instance) => (
-              <button
-                key={instance.summary.id}
-                type="button"
-                className={`registry-row ${instance.summary.id === selectedInstance.summary.id ? 'is-active' : ''}`}
-                onClick={() => setSelectedInstanceId(instance.summary.id)}
-              >
-                <div>
-                  <strong>{instance.summary.name}</strong>
-                  <p>
-                    {instance.summary.environment} · {instance.summary.source}
-                  </p>
-                </div>
-                <span className={`status status-${instance.summary.status}`}>{instance.summary.status}</span>
-              </button>
-            ))}
-          </div>
-        </article>
-
-        <article className="panel fleet-panel">
-          <div className="panel-header">
-            <div>
-              <span className="eyebrow">Manual registration</span>
-              <h2>Add fallback target</h2>
+            <div className="status-stack">
+              <small>{selectedInstance.summary.connection.baseUrl ?? selectedInstance.summary.connection.path ?? 'No endpoint registered'}</small>
+              <small>{fleetSource?.label ?? 'Probe loading'} · {surfaceSelection.reason}</small>
             </div>
-            <span className="badge badge-lite">Scaffold</span>
-          </div>
+          </article>
 
-          <div className="form-grid">
-            <label>
-              <span className="field-label">Name</span>
+          <article className="dashboard-card rail-card">
+            <div className="card-heading compact-heading">
+              <div>
+                <span className="eyebrow">Quick Actions</span>
+                <h3>Action Deck</h3>
+              </div>
+              <span className="status status-available">{availableActionCount} ready</span>
+            </div>
+
+            <div className="quick-action-stack">
+              {selectedInstance.snapshot.actions.map((action) => {
+                const run = selectedActionRuns[action.id];
+
+                return (
+                  <button
+                    key={action.id}
+                    type="button"
+                    className={`quick-action-button ${action.availability === 'available' ? 'is-ready' : 'is-blocked'}`}
+                    disabled={action.availability !== 'available' || run?.status === 'running'}
+                    onClick={() => void handleRunAction(selectedInstance, action)}
+                  >
+                    <span>{action.commandLabel}</span>
+                    <strong>{run?.status === 'running' ? 'Running…' : action.label}</strong>
+                    <small>{run?.summary ?? action.note}</small>
+                  </button>
+                );
+              })}
+            </div>
+
+            {latestRun ? <div className="event-strip">Last run · {latestRun.summary}</div> : null}
+          </article>
+
+          <article className="dashboard-card rail-card scroll-card">
+            <div className="card-heading compact-heading">
+              <div>
+                <span className="eyebrow">Fleet</span>
+                <h3>Targets</h3>
+              </div>
+              <span className="status status-online">{fleet.instances.length}</span>
+            </div>
+
+            <div className="registry-list compact-list">
+              {fleet.instances.map((instance) => (
+                <button
+                  key={instance.summary.id}
+                  type="button"
+                  className={`registry-row ${instance.summary.id === selectedInstance.summary.id ? 'is-active' : ''}`}
+                  onClick={() => setSelectedInstanceId(instance.summary.id)}
+                >
+                  <div>
+                    <strong>{instance.summary.name}</strong>
+                    <p>{instance.summary.environment}</p>
+                  </div>
+                  <span className={`status status-${instance.summary.status}`}>{instance.summary.status}</span>
+                </button>
+              ))}
+            </div>
+          </article>
+
+          <article className="dashboard-card rail-card scroll-card">
+            <div className="card-heading compact-heading">
+              <div>
+                <span className="eyebrow">Registry Ops</span>
+                <h3>Add Target</h3>
+              </div>
+              <span className="status status-limited">scaffold</span>
+            </div>
+
+            <div className="form-grid compact-form-grid">
               <input
                 className="field-input"
                 value={manualDraft.name}
                 onChange={(event) => setManualDraft((draft) => ({ ...draft, name: event.target.value }))}
-                placeholder="Hermes Lab Node"
+                placeholder="Name"
               />
-            </label>
-            <label>
-              <span className="field-label">Path</span>
               <input
                 className="field-input"
                 value={manualDraft.path}
                 onChange={(event) => setManualDraft((draft) => ({ ...draft, path: event.target.value }))}
-                placeholder="C:/Hermes/lab"
+                placeholder="Path"
               />
-            </label>
-            <label>
-              <span className="field-label">Base URL</span>
               <input
                 className="field-input"
                 value={manualDraft.baseUrl}
                 onChange={(event) => setManualDraft((draft) => ({ ...draft, baseUrl: event.target.value }))}
-                placeholder="http://127.0.0.1:8787"
+                placeholder="Base URL"
               />
-            </label>
-          </div>
-
-          <button type="button" className="primary-button" onClick={handleManualAdd}>
-            Save scaffold target
-          </button>
-        </article>
-
-        <article className="panel fleet-panel">
-          <div className="panel-header">
-            <div>
-              <span className="eyebrow">Discovery queue</span>
-              <h2>Probe suggestions</h2>
             </div>
-            <span className="badge badge-pro">Read-only</span>
-          </div>
 
-          <div className="suggestion-list">
-            {fleet.discoverySuggestions.map((suggestion) => (
-              <div key={suggestion.id} className="suggestion-card">
-                <div>
-                  <strong>{suggestion.name}</strong>
-                  <p>{suggestion.reason}</p>
-                  <small>
-                    {suggestion.baseUrl ?? suggestion.path ?? 'Path or endpoint pending'} · {suggestion.transport}
-                  </small>
+            <button type="button" className="primary-button" onClick={handleManualAdd}>
+              Save target
+            </button>
+
+            <div className="suggestion-list compact-list">
+              {fleet.discoverySuggestions.map((suggestion) => (
+                <div key={suggestion.id} className="suggestion-card">
+                  <div>
+                    <strong>{suggestion.name}</strong>
+                    <p>{suggestion.reason}</p>
+                  </div>
+                  <button type="button" className="secondary-button" onClick={() => handleSuggestionAdd(suggestion)}>
+                    Add
+                  </button>
                 </div>
-                <button type="button" className="secondary-button" onClick={() => handleSuggestionAdd(suggestion)}>
-                  Add to registry
-                </button>
-              </div>
-            ))}
-          </div>
-        </article>
-        </div>
+              ))}
+            </div>
+          </article>
+        </aside>
 
-        <section className="mode-grid surface-column">
-          <div className="surface-strategy-note panel">
-            <div className="panel-header">
-              <div>
-                <span className="eyebrow">Surface selection</span>
-                <h2>Automatic Pro/Lite strategy</h2>
-                <p className="panel-subtitle">
-                  Brand names do not choose the surface. Capability signals do, with an explicit operator override.
-                </p>
-              </div>
-              <span className={`badge ${effectiveSurfaceMode === 'pro' ? 'badge-pro' : 'badge-lite'}`}>
-                {effectiveSurfaceMode === 'pro' ? 'Pro active' : 'Lite active'}
-              </span>
+        <section className="surface-area">
+          <article className="dashboard-card surface-status-strip">
+            <div className="surface-status-block">
+              <span className="eyebrow">Live Surface</span>
+              <h2>{effectiveSurfaceMode === 'pro' ? 'Pro Dashboard' : 'Lite Control Pad'}</h2>
             </div>
-            <div className="surface-strategy-grid">
-              <div className="surface-strategy-card">
-                <strong>Auto rule</strong>
-                <p>
-                  Lite wins when two or more constrained-surface signals are present, or immediately when color depth is 8-bit or lower.
-                </p>
+
+            <div className="surface-status-metrics">
+              <div className="surface-pill">
+                <span>Auto</span>
+                <strong>{surfaceSelection.mode}</strong>
               </div>
-              <div className="surface-strategy-card">
-                <strong>Current signals</strong>
-                <p>
-                  {surfaceSelection.signals.viewportWidth}×{surfaceSelection.signals.viewportHeight} · {surfaceSelection.signals.colorDepth}-bit ·{' '}
-                  {surfaceSelection.signals.hasHover ? 'hover' : 'no hover'} ·{' '}
-                  {surfaceSelection.signals.hasFinePointer ? 'fine pointer' : 'coarse pointer'} ·{' '}
-                  {surfaceSelection.signals.prefersReducedMotion ? 'reduced motion' : 'standard motion'}
-                </p>
+              <div className="surface-pill">
+                <span>Viewport</span>
+                <strong>
+                  {surfaceSelection.signals.viewportWidth}×{surfaceSelection.signals.viewportHeight}
+                </strong>
               </div>
-              <div className="surface-strategy-card">
-                <strong>Why this recommendation</strong>
-                <p>{surfaceSelection.reason}</p>
+              <div className="surface-pill">
+                <span>Source</span>
+                <strong>{fleetSource?.generatedAt ? 'probe' : 'mock'}</strong>
+              </div>
+              <div className="surface-pill emphasis-pill">
+                <span>Reason</span>
+                <strong>{surfaceSelection.reason}</strong>
               </div>
             </div>
+          </article>
+
+          <div className="surface-frame">
+            {effectiveSurfaceMode === 'pro' ? (
+              <ProMode instance={selectedInstance} actionRuns={selectedActionRuns} onRunAction={handleRunAction} />
+            ) : (
+              <LiteMode instance={selectedInstance} actionRuns={selectedActionRuns} onRunAction={handleRunAction} />
+            )}
           </div>
-          <LiteMode instance={selectedInstance} actionRuns={selectedActionRuns} onRunAction={handleRunAction} />
-          <ProMode instance={selectedInstance} actionRuns={selectedActionRuns} onRunAction={handleRunAction} />
         </section>
       </section>
     </main>
