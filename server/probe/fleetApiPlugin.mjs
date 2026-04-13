@@ -1,0 +1,145 @@
+import { collectHermesFleetSnapshot } from './fleetProbe.mjs';
+import { runDoctorAction, runStatusAction } from './doctorAction.mjs';
+
+function sendJson(response, statusCode, payload) {
+  response.statusCode = statusCode;
+  response.setHeader('Content-Type', 'application/json; charset=utf-8');
+  response.end(JSON.stringify(payload, null, 2));
+}
+
+async function handleFleetRequest(_request, response) {
+  try {
+    const payload = await collectHermesFleetSnapshot();
+    sendJson(response, 200, payload);
+  } catch (error) {
+    sendJson(response, 500, {
+      source: 'probe',
+      error: error instanceof Error ? error.message : 'Unknown probe failure.',
+    });
+  }
+}
+
+async function handleHealthRequest(_request, response) {
+  try {
+    const payload = await collectHermesFleetSnapshot();
+    sendJson(response, 200, {
+      status: 'ok',
+      adapter: 'local-hermes-probe',
+      generatedAt: payload.generatedAt,
+      instances: payload.diagnostics.instanceCount,
+      suggestions: payload.diagnostics.suggestionCount,
+    });
+  } catch (error) {
+    sendJson(response, 500, {
+      status: 'error',
+      adapter: 'local-hermes-probe',
+      error: error instanceof Error ? error.message : 'Unknown probe failure.',
+    });
+  }
+}
+
+async function readJsonBody(request) {
+  const chunks = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  const raw = Buffer.concat(chunks).toString('utf8').trim();
+  return raw ? JSON.parse(raw) : {};
+}
+
+async function handleDoctorRequest(request, response) {
+  if (request.method !== 'POST') {
+    response.setHeader('Allow', 'POST');
+    sendJson(response, 405, { error: 'Method not allowed.' });
+    return;
+  }
+
+  try {
+    const payload = await readJsonBody(request);
+    const instanceId = typeof payload.instanceId === 'string' ? payload.instanceId.trim() : '';
+
+    if (!instanceId) {
+      sendJson(response, 400, {
+        ok: false,
+        action: 'hermes-doctor',
+        status: 'failed',
+        code: 'instance_required',
+        summary: 'A selected instance id is required.',
+      });
+      return;
+    }
+
+    const result = await runDoctorAction(instanceId);
+    sendJson(response, result.ok ? 200 : 400, result);
+  } catch (error) {
+    sendJson(response, 500, {
+      ok: false,
+      action: 'hermes-doctor',
+      status: 'failed',
+      code: 'action_error',
+      summary: error instanceof Error ? error.message : 'Unknown action failure.',
+    });
+  }
+}
+
+async function handleStatusRequest(request, response) {
+  if (request.method !== 'POST') {
+    response.setHeader('Allow', 'POST');
+    sendJson(response, 405, { error: 'Method not allowed.' });
+    return;
+  }
+
+  try {
+    const payload = await readJsonBody(request);
+    const instanceId = typeof payload.instanceId === 'string' ? payload.instanceId.trim() : '';
+
+    if (!instanceId) {
+      sendJson(response, 400, {
+        ok: false,
+        action: 'hermes-status',
+        status: 'failed',
+        code: 'instance_required',
+        summary: 'A selected instance id is required.',
+      });
+      return;
+    }
+
+    const result = await runStatusAction(instanceId);
+    sendJson(response, result.ok ? 200 : 400, result);
+  } catch (error) {
+    sendJson(response, 500, {
+      ok: false,
+      action: 'hermes-status',
+      status: 'failed',
+      code: 'action_error',
+      summary: error instanceof Error ? error.message : 'Unknown action failure.',
+    });
+  }
+}
+
+function registerFleetRoutes(server) {
+  server.middlewares.use('/api/fleet', (request, response) => {
+    void handleFleetRequest(request, response);
+  });
+  server.middlewares.use('/api/probe/health', (request, response) => {
+    void handleHealthRequest(request, response);
+  });
+  server.middlewares.use('/api/actions/doctor', (request, response) => {
+    void handleDoctorRequest(request, response);
+  });
+  server.middlewares.use('/api/actions/status', (request, response) => {
+    void handleStatusRequest(request, response);
+  });
+}
+
+export function fleetApiPlugin() {
+  return {
+    name: 'fleet-api-plugin',
+    configureServer(server) {
+      registerFleetRoutes(server);
+    },
+    configurePreviewServer(server) {
+      registerFleetRoutes(server);
+    },
+  };
+}
