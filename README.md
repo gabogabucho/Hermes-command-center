@@ -169,27 +169,47 @@ All data comes from the **local filesystem** and **Hermes CLI subprocesses**. No
 
 ## Setup
 
-### Development
+### 1. Set your PIN (required before first deploy)
+
+The access PIN is verified **server-side** — it never exists in the browser bundle. Set it as an environment variable before building:
+
+**systemd (production recommended):**
+```ini
+# /etc/systemd/system/hcc.service
+[Service]
+Environment=HCC_PIN=your_pin_here
+ExecStart=/usr/local/bin/node .../vite preview --host 0.0.0.0 --port 4173
+```
+
+```bash
+systemctl daemon-reload && systemctl restart hcc
+```
+
+**Dev / quick test:**
+```bash
+HCC_PIN=5678 npm run dev
+```
+
+If `HCC_PIN` is not set, the server falls back to `1234` — **never leave this unset in production**.
+
+### 2. Install and run
 
 ```bash
 npm install
 npm run dev     # Vite dev server + probe routes on :5173
 ```
 
-### Production
+### 3. Production build
 
 ```bash
-# Build
 npm run build
-
-# The hcc.service systemd unit runs vite preview which serves
-# both static files AND all /api/* probe routes on :4173
 systemctl enable --now hcc
 ```
 
 ### Server requirements
 
 - Node.js ≥ 18
+- Linux (for real `/proc` metrics — falls back to simulated on other platforms)
 - Hermes Agent installed at `~/.hermes/` (or `$HERMES_HOME`)
 - Hermes binary resolvable at `~/.hermes/hermes-agent/venv/bin/hermes`
 
@@ -201,12 +221,14 @@ All endpoints served on the same port as the dashboard:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
+| `/api/auth` | POST `{pin}` | Verify PIN server-side — PIN never in bundle |
 | `/api/probe/health` | GET | Probe liveness + instance count |
 | `/api/fleet` | GET | Full fleet snapshot (instances, capabilities, incidents) |
 | `/api/profiles` | GET | Active profile + all profiles with ops signals |
+| `/api/system` | GET | Real CPU/RAM/Net/Uptime from `/proc` |
 | `/api/actions/doctor` | POST `{instanceId}` | Run `hermes doctor` |
 | `/api/actions/status` | POST `{instanceId}` | Run `hermes status` |
-| `/api/chat` | POST `{message}` | SSE stream from `hermes chat -q` |
+| `/api/chat` | POST `{instanceId, message}` | SSE stream from `hermes chat -q` |
 
 ---
 
@@ -214,7 +236,7 @@ All endpoints served on the same port as the dashboard:
 
 | Item | Status |
 |------|--------|
-| CPU/RAM metrics | Simulated (random walk). Real `/proc` metrics need a `/api/system` endpoint. |
+| CPU/RAM metrics | Real from `/proc` on Linux. Simulated random-walk on dev (Windows/Mac). |
 | Chat continuity | Each message spawns a new process. `--continue` session flag available but not exposed in UI. |
 | Multi-Hermes | Only monitors the default `~/.hermes` instance + its profiles. Other VPS instances require separate deployments. |
 

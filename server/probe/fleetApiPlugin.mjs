@@ -144,6 +144,27 @@ async function handleSystemRequest(_request, response) {
   }
 }
 
+async function handleAuthRequest(request, response) {
+  if (request.method !== 'POST') {
+    response.setHeader('Allow', 'POST');
+    sendJson(response, 405, { error: 'Method not allowed.' });
+    return;
+  }
+  try {
+    const { pin } = await readJsonBody(request);
+    // PIN is read from HCC_PIN env var at runtime — never shipped in the bundle.
+    // Fallback to '1234' only in development (when HCC_PIN is unset).
+    const expected = process.env.HCC_PIN ?? '1234';
+    if (typeof pin === 'string' && pin === expected) {
+      sendJson(response, 200, { ok: true });
+    } else {
+      sendJson(response, 401, { ok: false });
+    }
+  } catch {
+    sendJson(response, 400, { ok: false, error: 'Bad request.' });
+  }
+}
+
 async function handleChatRequest(request, response) {
   if (request.method !== 'POST') {
     response.setHeader('Allow', 'POST');
@@ -194,6 +215,9 @@ function registerFleetRoutes(server) {
   });
   server.middlewares.use('/api/profiles', (request, response) => {
     void handleProfilesRequest(request, response);
+  });
+  server.middlewares.use('/api/auth', (request, response) => {
+    void handleAuthRequest(request, response);
   });
   server.middlewares.use('/api/system', (request, response) => {
     void handleSystemRequest(request, response);

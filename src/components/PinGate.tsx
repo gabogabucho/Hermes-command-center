@@ -1,7 +1,19 @@
 import { useEffect, useState } from 'react';
 
-const CORRECT_PIN = '1234';
 const SESSION_KEY = 'hcc_unlocked';
+
+async function verifyPin(pin: string): Promise<boolean> {
+  try {
+    const res = await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin }),
+    });
+    return res.ok && (await res.json() as { ok: boolean }).ok === true;
+  } catch {
+    return false;
+  }
+}
 
 type Props = {
   children: React.ReactNode;
@@ -28,6 +40,7 @@ export function PinGate({ children }: Props) {
   });
   const [input, setInput] = useState('');
   const [shake, setShake] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [attempts, setAttempts] = useState(0);
   const [now, setNow] = useState(Date.now());
 
@@ -41,26 +54,23 @@ export function PinGate({ children }: Props) {
   if (unlocked) return <>{children}</>;
 
   const press = (key: string) => {
-    if (shake) return;
+    if (shake || checking) return;
 
-    if (key === '⌫') {
-      setInput((p) => p.slice(0, -1));
-      return;
-    }
-
-    if (key === '↵') {
-      submit(input);
-      return;
-    }
-
+    if (key === '⌫') { setInput((p) => p.slice(0, -1)); return; }
+    if (key === '↵') { void submit(input); return; }
     if (input.length >= 4) return;
+
     const next = input + key;
     setInput(next);
-    if (next.length === 4) submit(next);
+    if (next.length === 4) void submit(next);
   };
 
-  const submit = (pin: string) => {
-    if (pin === CORRECT_PIN) {
+  const submit = async (pin: string) => {
+    if (!pin || checking) return;
+    setChecking(true);
+    const ok = await verifyPin(pin);
+    setChecking(false);
+    if (ok) {
       try { sessionStorage.setItem(SESSION_KEY, '1'); } catch { /* noop */ }
       setUnlocked(true);
     } else {
@@ -120,9 +130,10 @@ export function PinGate({ children }: Props) {
                   key={key}
                   type="button"
                   className={`pin-key ${key === '↵' ? 'pin-key-enter' : ''} ${key === '⌫' ? 'pin-key-back' : ''}`}
+                  disabled={checking}
                   onClick={() => press(key)}
                 >
-                  {key}
+                  {checking && key === '↵' ? '…' : key}
                 </button>
               ))}
             </div>
