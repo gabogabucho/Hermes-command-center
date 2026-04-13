@@ -25,20 +25,22 @@ function toLines(raw) {
     .filter(Boolean);
 }
 
-// Filter out hermes startup banner, session info, and other boilerplate
+// Filter out hermes startup banner, session info, and other boilerplate.
+// The startup banner is a box drawn with ╭│╰ characters — any line starting
+// with those border chars (after trimming) is part of the startup box.
 function isBoilerplate(line) {
-  // Box-drawing / ASCII art borders
-  if (/^[╭╮╰╯│╔╗╚╝═║▀▄█░▒▓\s]+$/.test(line)) return true;
-  // Horizontal rule lines (8+ box chars or dashes)
-  if (/^[─━═\-]{8,}/.test(line)) return true;
+  // Box border lines (startup banner uses ╭ │ ╰ borders)
+  if (/^[╭╮╰╯│╔╗╚╝═║]/.test(line)) return true;
+  // Horizontal rule lines (8+ repeated ─ or = chars)
+  if (/^[─━═]{8,}/.test(line)) return true;
   // Section headers like "─  ⚕ Hermes  ────"
   if (/^─\s+⚕/.test(line)) return true;
   // Common boilerplate prefixes
-  if (/^(Query:|Initializing agent|Resume this session with:|hermes --resume|Session:\s|Duration:\s|Messages:\s|\(and \d+ more)/.test(line)) return true;
-  // Available Tools/Skills section headers inside the startup box
-  if (/^(Available Tools|Available Skills|\d+ tools.*skills)/.test(line)) return true;
-  // Braille/block art patterns from the logo
-  if (/[⠀⠁⠂⠃⠄⠅⠆⠇⠈⠉⠊⠋⠌⠍⠎⠏]/.test(line)) return true;
+  if (/^(Query:|Initializing agent|Resume this session with:|hermes --resume|Session:\s|Duration:\s|Messages:\s)/.test(line)) return true;
+  // Braille art characters from the ASCII logo
+  if (/[⠀⠁⠂⠃⠄⠅⠆⠇⠈⠉⠊⠋⠌⠍⠎⠏⠐⠑⠒⠓⠔⠕⠖⠗⠘⠙⠚⠛⠜⠝⠞⠟⠠⠡⠢⠣⠤⠥⠦⠧⠨⠩⠪⠫⠬⠭⠮⠯⠰⠱⠲⠳⠴⠵⠶⠷⠸⠹⠺⠻⠼⠽⠾⠿]/.test(line)) return true;
+  // Block art from the ASCII logo
+  if (/^[█▀▄░▒▓\s]+$/.test(line)) return true;
   return false;
 }
 
