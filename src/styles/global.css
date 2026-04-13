@@ -1460,6 +1460,10 @@ h1, h2, h3, p { margin: 0; }
   flex-shrink: 0;
 }
 
+/* Flatline state — animation paused via svg.pauseAnimations() */
+.ekg-flat .ekg-line  { opacity: 0.18; filter: none; }
+.ekg-flat .ekg-label { color: var(--red); opacity: 0.8; }
+
 /* ── PIN Gate ────────────────────────────────────────────────────────── */
 @keyframes pin-shake {
   0%, 100% { transform: translateX(0); }

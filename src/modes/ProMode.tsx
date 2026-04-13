@@ -85,10 +85,21 @@ const ECG_PATH =
   'L215,65 Q218,55 222,65 L238,65 L240,68 L244,8 L248,72 L252,65 L265,65 Q272,42 282,65 L300,65 ' +
   'L315,65 Q318,55 322,65 L338,65 L340,68 L344,8 L348,72 L352,65 L365,65 Q372,42 382,65 L400,65';
 
-function EkgLine() {
+function EkgLine({ status }: { status: string }) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const isOffline = status === 'offline';
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    if (isOffline) svg.pauseAnimations();
+    else svg.unpauseAnimations();
+  }, [isOffline]);
+
   return (
-    <div className="ops-ekg" aria-hidden>
+    <div className={`ops-ekg${isOffline ? ' ekg-flat' : ''}`} aria-hidden>
       <svg
+        ref={svgRef}
         className="ekg-svg"
         viewBox="0 0 200 80"
         preserveAspectRatio="none"
@@ -106,7 +117,7 @@ function EkgLine() {
           <path className="ekg-line" d={ECG_PATH} fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </g>
       </svg>
-      <span className="ekg-label">live</span>
+      <span className="ekg-label">{isOffline ? 'flat' : 'live'}</span>
     </div>
   );
 }
@@ -461,7 +472,7 @@ export function ProMode({ instance, actionRuns, onRunAction }: Props) {
 
       {/* ── Terminal strip ────────────────────────────────────────── */}
       <div className="ops-terminal">
-        <EkgLine />
+        <EkgLine status={summary.status} />
 
         <div className="ops-terminal-body">
           <div className="ops-terminal-output ops-chat-output" ref={terminalRef}>

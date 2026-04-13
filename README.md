@@ -9,25 +9,27 @@ A **production monitoring dashboard** for [Hermes Agent](https://github.com/nous
 
 ## Screenshots
 
-### AMBER — Default ops theme (Pro mode)
-
-![Amber Pro Mode](docs/screenshots/amber-pro.png)
-
-### CYBER — Hacker terminal (Pro mode)
-
-![Cyber Pro Mode](docs/screenshots/cyber-pro.png)
-
-### MATRIX — Green phosphor (Pro mode)
-
-![Matrix Pro Mode](docs/screenshots/matrix-pro.png)
-
-### Lite Mode — Minimal view
-
-![Lite Mode](docs/screenshots/amber-lite.png)
-
 ### PIN Gate — Lock screen
 
 ![PIN Gate](docs/screenshots/pin-gate.png)
+
+### AMBER — Default ops theme
+
+| Pro | Lite |
+|-----|------|
+| ![Amber Pro](docs/screenshots/amber-pro.png) | ![Amber Lite](docs/screenshots/amber-lite.png) |
+
+### CYBER — Hacker terminal
+
+| Pro | Lite |
+|-----|------|
+| ![Cyber Pro](docs/screenshots/cyber-pro.png) | ![Cyber Lite](docs/screenshots/cyber-lite.png) |
+
+### MATRIX — Green phosphor
+
+| Pro | Lite |
+|-----|------|
+| ![Matrix Pro](docs/screenshots/matrix-pro.png) | ![Matrix Lite](docs/screenshots/matrix-lite.png) |
 
 ---
 
@@ -55,7 +57,7 @@ Reads `~/.hermes/profiles/*` directly. For each profile:
 - Memory file count
 
 ### Live system metrics
-CPU · RAM · Net I/O · Uptime animated gauges. Currently simulated (random walk), labeled `~sim`.
+CPU · RAM · Net I/O · Uptime — real data from `/proc/stat`, `/proc/meminfo`, `/proc/net/dev`. Polled every 2s. Falls back to simulated random-walk on non-Linux (dev mode), labeled `~sim`.
 
 ### Skin engine
 Three skins, persisted to `localStorage`, switchable from the top bar at any time.
