@@ -916,13 +916,13 @@ h1, h2, h3, p { margin: 0; }
 .ops-console {
   height: 100%;
   display: grid;
-  grid-template-rows: 72px minmax(0, 1fr) 80px;
+  grid-template-rows: 72px minmax(0, 1fr) 120px;
   gap: 0;
   overflow: hidden;
 }
 
 .ops-console-lite {
-  grid-template-rows: 64px minmax(0, 1fr) 72px;
+  grid-template-rows: 64px minmax(0, 1fr) 120px;
 }
 
 /* ── Vitals strip ────────────────────────────────────────────────────── */
@@ -1257,18 +1257,26 @@ h1, h2, h3, p { margin: 0; }
 /* ── Terminal strip ──────────────────────────────────────────────────── */
 .ops-terminal {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   border-top: 1px solid var(--border-mid);
   background: var(--surface-0);
   overflow: hidden;
 }
 
+.ops-terminal-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
 .ops-terminal-output {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 6px 16px;
-  overflow: hidden;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 16px 4px;
+  overflow-y: auto;
   flex: 1;
 }
 
@@ -1276,11 +1284,10 @@ h1, h2, h3, p { margin: 0; }
   font-family: 'IBM Plex Mono', 'Fira Code', monospace;
   font-size: 0.74rem;
   color: var(--text-dim);
-  white-space: nowrap;
+  white-space: pre-wrap;
+  word-break: break-all;
   overflow: hidden;
-  text-overflow: ellipsis;
   flex-shrink: 0;
-  max-width: 300px;
 }
 
 .terminal-cursor {

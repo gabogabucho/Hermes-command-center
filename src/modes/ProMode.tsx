@@ -449,34 +449,36 @@ export function ProMode({ instance, actionRuns, onRunAction }: Props) {
           <span className="ekg-label">live</span>
         </div>
 
-        <div className="ops-terminal-output ops-chat-output" ref={terminalRef}>
-          {terminalLines.map((entry, i) => (
-            <span
-              key={i}
-              className={`terminal-line ${entry.role === 'user' ? 'terminal-line-user' : 'terminal-line-agent'}`}
-            >
-              {entry.role === 'user' ? '› ' : '⬡ '}{entry.text}
-            </span>
-          ))}
-          {isChatting && <span className="terminal-line terminal-line-agent">⬡ <span className="terminal-cursor">▌</span></span>}
-          {!isChatting && chatHistory.length === 0 && <span className="terminal-cursor">▌</span>}
-        </div>
+        <div className="ops-terminal-body">
+          <div className="ops-terminal-output ops-chat-output" ref={terminalRef}>
+            {terminalLines.map((entry, i) => (
+              <span
+                key={i}
+                className={`terminal-line ${entry.role === 'user' ? 'terminal-line-user' : 'terminal-line-agent'}`}
+              >
+                {entry.role === 'user' ? '› ' : '⬡ '}{entry.text}
+              </span>
+            ))}
+            {isChatting && <span className="terminal-line terminal-line-agent">⬡ <span className="terminal-cursor">▌</span></span>}
+            {!isChatting && chatHistory.length === 0 && <span className="terminal-cursor">▌</span>}
+          </div>
 
-        <form className="ops-terminal-input" onSubmit={(e) => { void handleChat(e); }}>
-          <span className="terminal-prompt">›</span>
-          <input
-            className="terminal-field"
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            placeholder={isChatting ? 'Hermes is thinking…' : 'ask hermes anything · hermes doctor · hermes status…'}
-            spellCheck={false}
-            autoComplete="off"
-            disabled={isChatting}
-          />
-          <button type="submit" className="terminal-send" disabled={isChatting}>
-            {isChatting ? '…' : 'Send'}
-          </button>
-        </form>
+          <form className="ops-terminal-input" onSubmit={(e) => { void handleChat(e); }}>
+            <span className="terminal-prompt">›</span>
+            <input
+              className="terminal-field"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder={isChatting ? 'Hermes is thinking…' : 'ask hermes anything · hermes doctor · hermes status…'}
+              spellCheck={false}
+              autoComplete="off"
+              disabled={isChatting}
+            />
+            <button type="submit" className="terminal-send" disabled={isChatting}>
+              {isChatting ? '…' : 'Send'}
+            </button>
+          </form>
+        </div>
       </div>
 
     </div>

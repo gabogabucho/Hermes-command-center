@@ -1,5 +1,55 @@
+import { useRef, useState } from 'react';
 import type { HermesInstanceRecord, OperatorActionId, OperatorActionSummary } from '../adapters/types';
 import { formatActionTimestamp, getIncidentCounts, getLatestActionRun, prioritizeIncidents, type ActionRunState } from './panelModel';
+
+type ChatEntry = { role: 'user' | 'agent'; text: string };
+
+async function sendChatMessage(
+  instanceId: string,
+  message: string,
+  onChunk: (text: string) => void,
+  onDone: (exitCode: number) => void,
+  onError: (err: string) => void,
+) {
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instanceId, message }),
+    });
+
+    if (!res.ok || !res.body) {
+      onError(`HTTP ${res.status}`);
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() ?? '';
+
+      for (const part of parts) {
+        const line = part.replace(/^data:\s*/, '').trim();
+        if (!line) continue;
+        try {
+          const evt = JSON.parse(line);
+          if (evt.chunk) onChunk(evt.chunk);
+          if (evt.done) onDone(evt.exitCode ?? 0);
+          if (evt.error) onError(evt.error);
+        } catch { /* ignore malformed SSE */ }
+      }
+    }
+  } catch (err) {
+    onError(err instanceof Error ? err.message : 'fetch failed');
+  }
+}
 
 type Props = {
   instance: HermesInstanceRecord;
@@ -14,6 +64,57 @@ export function LiteMode({ instance, actionRuns, onRunAction }: Props) {
   const latestActionRun = getLatestActionRun(snapshot.actions, actionRuns);
   const incidentCounts = getIncidentCounts(snapshot.incidents);
   const queueLoad = snapshot.queues.reduce((t, q) => t + q.depth, 0);
+
+  const [chatInput, setChatInput] = useState('');
+  const [chatHistory, setChatHistory] = useState<ChatEntry[]>([]);
+  const [isChatting, setIsChatting] = useState(false);
+  const terminalRef = useRef<HTMLDivElement>(null);
+
+  const handleChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const msg = chatInput.trim();
+    if (!msg || isChatting) return;
+    setChatInput('');
+    setIsChatting(true);
+    setChatHistory((prev) => [...prev, { role: 'user', text: msg }]);
+    setChatHistory((prev) => [...prev, { role: 'agent', text: '' }]);
+
+    await sendChatMessage(
+      summary.id,
+      msg,
+      (chunk) => {
+        setChatHistory((prev) => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last?.role === 'agent') {
+            updated[updated.length - 1] = { role: 'agent', text: last.text + (last.text ? '\n' : '') + chunk };
+          }
+          return updated;
+        });
+        setTimeout(() => {
+          if (terminalRef.current) terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+        }, 0);
+      },
+      () => setIsChatting(false),
+      (err) => {
+        setChatHistory((prev) => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last?.role === 'agent') {
+            updated[updated.length - 1] = { role: 'agent', text: `Error: ${err}` };
+          }
+          return updated;
+        });
+        setIsChatting(false);
+      },
+    );
+  };
+
+  const terminalLines: ChatEntry[] = chatHistory.length > 0
+    ? chatHistory.slice(-6)
+    : latestActionRun?.outputLines?.length
+      ? latestActionRun.outputLines.slice(-3).map((t) => ({ role: 'agent' as const, text: t }))
+      : [];
 
   return (
     <div className="ops-console ops-console-lite">
@@ -114,17 +215,34 @@ export function LiteMode({ instance, actionRuns, onRunAction }: Props) {
 
       {/* Terminal strip */}
       <div className="ops-terminal">
-        <div className="ops-terminal-output">
-          {(latestActionRun?.outputLines ?? snapshot.subagents.map((s) => `${s.label} · ${s.status}`))
-            .slice(-3)
-            .map((line, i) => <span key={i} className="terminal-line">{line}</span>)}
-          <span className="terminal-cursor">▌</span>
-        </div>
-        <div className="ops-terminal-input ops-terminal-readonly">
-          <span className="terminal-prompt">›</span>
-          <span className="terminal-status-line">
-            {summary.connection.baseUrl ?? summary.connection.path ?? 'local'} · {summary.connection.transport}
-          </span>
+        <div className="ops-terminal-body">
+          <div className="ops-terminal-output ops-chat-output" ref={terminalRef}>
+            {terminalLines.map((entry, i) => (
+              <span
+                key={i}
+                className={`terminal-line ${entry.role === 'user' ? 'terminal-line-user' : 'terminal-line-agent'}`}
+              >
+                {entry.role === 'user' ? '› ' : '⬡ '}{entry.text}
+              </span>
+            ))}
+            {isChatting && <span className="terminal-line terminal-line-agent">⬡ <span className="terminal-cursor">▌</span></span>}
+            {!isChatting && chatHistory.length === 0 && <span className="terminal-cursor">▌</span>}
+          </div>
+          <form className="ops-terminal-input" onSubmit={(e) => { void handleChat(e); }}>
+            <span className="terminal-prompt">›</span>
+            <input
+              className="terminal-field"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder={isChatting ? 'Hermes is thinking…' : 'ask hermes…'}
+              spellCheck={false}
+              autoComplete="off"
+              disabled={isChatting}
+            />
+            <button type="submit" className="terminal-send" disabled={isChatting}>
+              {isChatting ? '…' : 'Send'}
+            </button>
+          </form>
         </div>
       </div>
 
