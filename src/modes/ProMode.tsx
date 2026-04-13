@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { HermesInstanceRecord, OperatorActionId, OperatorActionSummary } from '../adapters/types';
 import { useLiveMetrics } from '../hooks/useLiveMetrics';
 import { useProfiles } from '../hooks/useProfiles';
