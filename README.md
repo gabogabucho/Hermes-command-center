@@ -1,278 +1,233 @@
 # Hermes Command Center
 
-Hermes Command Center is a standalone control-surface product for operators running an already-functional Hermes installation. It is not a mode inside `hermes-webui`; it is a separate repo and deployment target focused on monitoring, orchestration visibility, and fast intervention for live agents and subagents.
+A **production monitoring dashboard** for [Hermes Agent](https://github.com/nousresearch/hermes-agent) instances. Not a chat UI — a diagnostic cockpit.
 
-This repository is MIT-licensed open source software. The product contract and UI scaffold are intended to stay transparent, forkable, and capability-driven rather than tied to one vendor device family.
+> **Purpose:** Answer 5 ops questions at a glance:
+> ¿Cómo está? · ¿Algo falla? · ¿Algo a vigilar? · ¿Chequeo general? · ¿Reparación rápida?
 
-The UI is explicitly framed as a command dashboard product: the first screen should remain operationally useful without scrolling, and sections should prefer fixed dashboard regions with internal overflow over one long page.
+---
 
-## Product concept
+## Screenshots
 
-The product frames Hermes as an always-on operational cockpit organized by device capability:
+### AMBER — Default ops theme (Pro mode)
 
-- **Pro** — the richer command surface chosen for displays and inputs that can support denser telemetry and more simultaneous panels.
-- **Lite** — the reduced command surface chosen for constrained, monochrome, low-motion, touch-first, or otherwise lower-capability environments.
+![Amber Pro Mode](docs/screenshots/amber-pro.png)
 
-Both surfaces sit on top of Hermes through adapter contracts and capability probing rather than assuming one fixed backend shape.
+### CYBER — Hacker terminal (Pro mode)
 
-## Pro/Lite automatic surface-selection contract
+![Cyber Pro Mode](docs/screenshots/cyber-pro.png)
 
-Pro vs Lite is a **surface-selection strategy**, not a brand or hardware SKU distinction.
+### MATRIX — Green phosphor (Pro mode)
 
-The intended contract is:
+![Matrix Pro Mode](docs/screenshots/matrix-pro.png)
 
-1. **An explicit user override always wins** (`Auto`, `Lite`, or `Pro`).
-2. In **Auto** mode, Hermes Command Center evaluates the current display/input surface instead of checking device brand names.
-3. The selection uses practical capability signals:
-   - viewport width and height
-   - display color depth
-   - pointer precision and hover support
-   - reduced-motion preference
-4. **Lite is selected immediately** when the detected color depth is `8-bit` or lower, because that strongly suggests an e-ink, monochrome, or otherwise constrained display surface.
-5. Otherwise, **Lite is selected when two or more constrained-surface signals are present**:
-   - viewport width below `960px`
-   - viewport height below `720px`
-   - no hover support or no fine pointer
-   - `prefers-reduced-motion: reduce`
-6. **Pro is selected** when Lite does not win. In practice this means a wider color display with enough room and interaction fidelity for denser telemetry.
+### Lite Mode — Minimal view
 
-This contract is the product-level definition even when runtime implementation is still evolving. The goal is to keep the surface decision explainable, testable, and independent from brand labels such as Kindle, tablet, monitor, or wallboard.
+![Lite Mode](docs/screenshots/amber-lite.png)
 
-From day 1 the scaffold supports both mental models:
+### PIN Gate — Lock screen
 
-- **Single-instance mode** — pick one Hermes install and operate as if it is the only target.
-- **Multi-instance mode** — keep a normalized fleet registry and switch the active shell scope without changing Lite or Pro rendering contracts.
+![PIN Gate](docs/screenshots/pin-gate.png)
 
-## Core use cases
+---
 
-- Monitor active agents and subagents from a wall-mounted or desk-side command surface.
-- See runtime health, queue pressure, recent activity, and intervention opportunities.
-- Confirm whether a Hermes install exposes WebUI APIs, gateway APIs, direct runtime APIs, or only partial capabilities.
-- Switch between multiple Hermes instances while keeping one selected operational scope in the shell.
-- Register an instance manually or review auto-discovery suggestions from the local probe layer.
-- Offer different UI density levels without changing the underlying operational model.
+## What this is (and what it isn't)
 
-## Surface profiles
+| This dashboard | hermes-webui |
+|----------------|--------------|
+| Monitor health, diagnose issues, react fast | Use Hermes to do work |
+| Ops cockpit — glance and act | Full chat UI, workspace browser |
+| No message content, no file browser | Full conversation history |
+| Chat = diagnostic tool ("are you OK?") | Chat = primary interface |
 
-### Lite
+---
 
-- E-ink friendly layout
-- Monochrome palette
-- Large tap targets
-- Low-motion interaction model
-- Icon/dialog-driven actions
-- Designed for persistent glanceability over deep navigation
-- Suitable for Kindle-class readers as one example, but not limited to them
-- Framed as the lower-capability dashboard surface rather than a device-branded mode
-- Preferred automatically when the current surface looks constrained by viewport, motion preference, pointer/hover capability, or color depth
+## Features
 
-### Pro
+### Single-screen cockpit
+Everything visible without scrolling — vitals strip, 3-column grid, EKG heartbeat, chat terminal — all in 100vh.
 
-- Monitor/tablet/wallboard responsive workspace
-- Richer-capability command dashboard framing
-- Denser telemetry and richer panels
-- Better suited for multi-stream monitoring and future command workflows
-- Preferred automatically when the current surface has sufficient space, color depth, and interaction fidelity for dense operational layouts
+### Profile monitoring
+Reads `~/.hermes/profiles/*` directly. For each profile:
+- Active model + provider (from `config.yaml`)
+- Session count + last activity time
+- Cron jobs — enabled/total
+- Memory file count
 
-## Dashboard layout principles
+### Live system metrics
+CPU · RAM · Net I/O · Uptime animated gauges. Currently simulated (random walk), labeled `~sim`.
 
-- First screen should expose command posture, selected target, incident posture, and operator actions without requiring page scroll.
-- Prefer viewport-aware panel layouts with internal scrolling for deep lists.
-- Preserve glanceability across monitor, tablet, wallboard, and constrained-device targets.
-- Keep shell copy in English and avoid backend-scope expansion in UI refinements.
+### Skin engine
+Three skins, persisted to `localStorage`, switchable from the top bar at any time.
 
-## Architecture summary
+### PIN gate
+Fullscreen lock screen with clock. Default PIN: `1234` (change in `src/components/PinGate.tsx`).
 
-Hermes Command Center assumes:
+### Diagnostic chat
+SSE-streamed `hermes chat -q` — interrogate the live agent to diagnose issues in real time.
 
-1. Hermes is already installed and functional.
-2. This project does **not** own the Hermes runtime.
-3. The UI talks to Hermes through **adapters**.
-4. Adapters perform **capability probing** to discover what each connected install can do.
-5. The UI keeps a normalized **instance registry** plus a selected-instance snapshot.
-6. Lite and Pro render the same selected instance from shared normalized data.
+### Quick Fix actions
+Run `hermes doctor` and `hermes status` directly from the dashboard with one click.
 
-See `docs/architecture.md` for adapter contracts and normalized data shapes.
+---
 
-## Fleet model in the scaffold
+## Skins
 
-The current MVP now includes a first real local probe adapter plus scaffold fallback:
+| Skin | Style | Accent |
+|------|-------|--------|
+| **AMBER** | Deep navy, radial glow, rounded cards | `#e86a1a` orange |
+| **CYBER** | Pure black, sharp pixel borders, scanlines | `#ffffff` white |
+| **MATRIX** | Pure black, phosphor glow | `#00ff41` green |
 
-- normalized instance records with status, transport, base URL/path metadata, and capability summary
-- local filesystem/env probe for common Hermes install artifacts
-- optional localhost `/health` readiness check when a loopback base URL can be inferred
-- mock adapter data for multiple Hermes instances when probe data is unavailable or empty
-- app-shell instance selector
-- registered-instances panel
-- fallback manual add flow (`name`, `path`, `base URL`)
-- discovery suggestion cards sourced by the probe
+### Adding a new skin
 
-This remains read-first. There is still no write-path backend or persistent registry yet.
-
-## Stack
-
-- React 18
-- TypeScript
-- Vite 5
-- Lightweight custom CSS for the initial shell
-
-## Project structure
-
-```text
-src/
-  adapters/        # capability contracts and mock fleet adapter
-  app/             # shell and composition
-  data/            # mocked fleet + selected instance state
-  modes/           # Lite and Pro surfaces
-  styles/          # global styling
+**1. Register** in `src/skins/registry.ts`:
+```ts
+{ id: 'my-skin', label: 'MY SKIN', description: 'Description' }
 ```
 
-## Getting started
+**2. Add CSS overrides** in `src/styles/global.css`:
+```css
+[data-skin="my-skin"] {
+  --accent:    #your-color;
+  --surface-0: #000;
+  /* override any token */
+  font-family: 'Your Font', monospace;
+}
+```
+
+The skin switcher picks it up automatically — no component changes needed.
+
+---
+
+## Surface modes
+
+| Mode | Description | When |
+|------|-------------|------|
+| **Pro** | Full cockpit: vitals, 3-column grid, EKG, chat | Wide display, fine pointer |
+| **Lite** | Minimal: top incidents + quick fix only | Constrained viewport, touch, e-ink |
+| **Auto** | Picks based on viewport, color depth, hover | Default |
+
+---
+
+## Architecture
+
+```
+src/
+  app/App.tsx               ← fleet loader, surface mode, skin switcher
+  modes/
+    ProMode.tsx             ← full cockpit layout + profiles section
+    LiteMode.tsx            ← minimal layout
+  components/
+    PinGate.tsx             ← lock screen with clock + numpad
+  hooks/
+    useLiveMetrics.ts       ← simulated CPU/RAM/Net/Uptime (2s interval)
+    useProfiles.ts          ← fetches /api/profiles every 30s
+    useSkin.ts              ← applies data-skin to <html>, persists to localStorage
+  skins/
+    registry.ts             ← skin definitions (id, label, description)
+  styles/
+    global.css              ← all CSS + [data-skin="X"] overrides
+  adapters/
+    probeAdapter.ts         ← fetches /api/fleet, /api/actions/*
+
+server/probe/
+  fleetApiPlugin.mjs        ← Vite plugin — registers all /api/* routes
+  fleetProbe.mjs            ← discovers Hermes instances via filesystem scan
+  profileProbe.mjs          ← reads profiles, sessions, cron jobs, memory
+  doctorAction.mjs          ← runs hermes doctor / hermes status as subprocesses
+  chatAction.mjs            ← streams hermes chat -q via SSE (boilerplate filtered)
+```
+
+### Data flow
+
+```
+Browser → /api/fleet         → fleetProbe    → ~/.hermes filesystem scan
+        → /api/profiles      → profileProbe  → ~/.hermes/profiles/* scan
+        → /api/actions/doctor → doctorAction → spawn: hermes doctor
+        → /api/actions/status → doctorAction → spawn: hermes status
+        → /api/chat (SSE)    → chatAction    → spawn: hermes chat -q
+```
+
+All data comes from the **local filesystem** and **Hermes CLI subprocesses**. No remote API calls, no database writes.
+
+### Profile data sources
+
+| Signal | File |
+|--------|------|
+| Active profile | `~/.hermes/active_profile` |
+| Model / provider | `~/.hermes/profiles/{name}/config.yaml` |
+| Session count | `~/.hermes/profiles/{name}/sessions/` (file count) |
+| Last activity | newest session file mtime |
+| Cron jobs | `~/.hermes/profiles/{name}/cron/` |
+| Memory files | `~/.hermes/profiles/{name}/memories/` |
+| Skills | `~/.hermes/profiles/{name}/skills/` `.md`/`.yaml` count |
+
+---
+
+## Setup
+
+### Development
 
 ```bash
 npm install
-npm run dev
+npm run dev     # Vite dev server + probe routes on :5173
 ```
 
-The Vite dev server now exposes repo-owned probe endpoints at `/api/fleet` and `/api/probe/health`.
-The frontend tries real probe data first and falls back to the mock fleet when the probe is unavailable or finds no confident instances.
-
-Run the probe directly:
+### Production
 
 ```bash
-npm run probe:once
-```
-
-Build validation:
-
-```bash
+# Build
 npm run build
+
+# The hcc.service systemd unit runs vite preview which serves
+# both static files AND all /api/* probe routes on :4173
+systemctl enable --now hcc
 ```
 
-The current scaffold also exposes the Pro/Lite recommendation in the UI, including an `Auto / Lite / Pro` override control so the contract is visible even before all runtime behavior is fully implemented.
+### Server requirements
 
-## Initial roadmap
+- Node.js ≥ 18
+- Hermes Agent installed at `~/.hermes/` (or `$HERMES_HOME`)
+- Hermes binary resolvable at `~/.hermes/hermes-agent/venv/bin/hermes`
 
-### Phase 0 — scaffold
+---
 
-- Establish product identity
-- Create Lite and Pro shell views
-- Define adapter and capability contracts
-- Normalize initial mock data model
+## API reference
 
-### Phase 1 — live connectivity
+All endpoints served on the same port as the dashboard:
 
-- Implement Hermes install discovery
-- Add capability probe flows
-- Persist instance registration and selection
-- Connect real session/agent/subagent data
-- Introduce degraded-mode handling for partial backends
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/probe/health` | GET | Probe liveness + instance count |
+| `/api/fleet` | GET | Full fleet snapshot (instances, capabilities, incidents) |
+| `/api/profiles` | GET | Active profile + all profiles with ops signals |
+| `/api/actions/doctor` | POST `{instanceId}` | Run `hermes doctor` |
+| `/api/actions/status` | POST `{instanceId}` | Run `hermes status` |
+| `/api/chat` | POST `{message}` | SSE stream from `hermes chat -q` |
 
-### Phase 2 — operator workflows
+---
 
-- Incident triage flows
-- Intervention dialogs and approvals
-- Alert routing and escalation views
-- Persistent wallboard mode for Lite
+## Known limitations
 
-### Phase 3 — premium command center
+| Item | Status |
+|------|--------|
+| CPU/RAM metrics | Simulated (random walk). Real `/proc` metrics need a `/api/system` endpoint. |
+| Chat continuity | Each message spawns a new process. `--continue` session flag available but not exposed in UI. |
+| Multi-Hermes | Only monitors the default `~/.hermes` instance + its profiles. Other VPS instances require separate deployments. |
 
-- Pro analytics panels
-- Multi-workspace visibility
-- Historical state comparison
-- Role-aware operations surfaces
+---
 
-## Design direction
+## Pro/Lite selection contract
 
-The visual direction draws selectively from:
+Auto mode selects Lite when:
+- Color depth ≤ 8-bit (e-ink / monochrome), OR
+- Two or more of: viewport < 960px wide / < 720px tall, no hover, no fine pointer, `prefers-reduced-motion`
 
-- **Astro UXDS** for mission-control framing
-- **Carbon** for structured dashboard discipline
-- **Primer** for pragmatic information hierarchy
-- **Fluent** for approachable productivity patterns
-- **Cloudscape** for operational clarity at scale
+Otherwise Pro is selected. The `Auto / Lite / Pro` switcher in the top bar always overrides.
 
-Lite should remain distinct: monochrome, quiet, tactile, and purposefully reduced rather than a downgraded Pro skin. Kindle-class e-ink readers remain a useful example, not the defining label. See `docs/design-brief.md`.
+---
 
-## Current real probe behavior
+## License
 
-The standalone probe adapter currently detects and derives read-only snapshots from:
-
-- the official default Hermes home at `~/.hermes`
-- profile-backed instances under `~/.hermes/profiles/*`
-- `HERMES_HOME` when explicitly set in the environment
-- `HERMES_HOME` values derived from local `.env`, `.env.example`, or `config.yaml`
-- the standard Hermes home layout documented by Hermes Agent, including `config.yaml`, `.env`, `auth.json`, `SOUL.md`, `state.db`, `sessions/`, `logs/`, `cron/`, `memories/`, `skills/`, and `profiles/`
-- optional install inference from `~/.local/bin/hermes` when the global CLI symlink points into a Hermes-managed virtualenv
-- optional localhost `/health` responses when a loopback base URL can be inferred from local config
-
-The richer probe snapshot stays intentionally conservative and only uses official/default Hermes signals:
-
-- `config.yaml`, `.env`, `auth.json`, and `SOUL.md` to estimate whether an instance looks empty, partially configured, or configured
-- `state.db` schema discovery plus minimal read-only session/message metadata when the official SQLite layout is recognizable
-- `sessions/` transcript file count and newest file mtime for recent gateway session evidence
-- `logs/` file presence/count and newest file mtime for basic runtime recency hints
-- `profiles/` directory count for multi-agent profile discovery under the standard Hermes home layout
-
-### Naming heuristics
-
-Instance names now stay deliberately conservative and repo-owned:
-
-1. **Profile instances** use the official profile directory name from `~/.hermes/profiles/<name>`.
-2. **Any instance with `config.yaml: name`** may use that exact top-level name.
-3. **Any instance with a clear `SOUL.md` heading** may use that heading when it is more specific than a generic title like `Hermes` or `SOUL`.
-4. **The default root `~/.hermes` home** falls back to `Hermes Home` when no clearer official/local signal exists.
-5. Other local candidates fall back to a prettified directory name.
-
-The probe does **not** invent composite names from arbitrary env vars or undocumented repo-specific metadata.
-
-From those signals, the probe now infers:
-
-- basic readiness (`empty`, `configured`, `active`)
-- configuration footprint quality (`empty`, `partial`, `configured`)
-- recent session presence and transcript count
-- latest observed activity source/recency from `sessions/`, recognized `state.db` session/message timestamps, `state.db` mtime fallback, or `logs/`
-- more meaningful alerts when a discovered `~/.hermes` path is missing the expected official artifacts
-- normalized incidents in these categories: `readiness`, `configuration`, `activity`, `artifacts`, `health`, and `actions`
-- explicit local action capability checks for the safe `hermes doctor` and `hermes status` wrappers
-
-## Safe local action wrappers: `hermes doctor` and `hermes status`
-
-The first action set is intentionally narrow and explicit:
-
-- the UI can trigger **only** `hermes doctor` and `hermes status`
-- it runs against the **selected local Hermes instance** only
-- it resolves the executable from official/local install signals when possible
-- it sets `HERMES_HOME` to the selected local instance path before invocation
-- it does **not** pass `--fix`
-- it does **not** allow arbitrary commands or arbitrary CLI arguments
-- it returns a small running/success/failure summary plus a short output preview instead of a full logs console
-
-Current executable resolution order is conservative:
-
-1. a Hermes-managed virtualenv launcher under an inferred install root (`venv/bin/hermes` or `venv/Scripts/hermes*`)
-2. the standard local launcher path `~/.local/bin/hermes` (or Windows-style `hermes.exe` / `hermes.cmd` when present)
-
-If no executable can be resolved, the action stays blocked and the incident/action summary explains why.
-
-What it does **not** do yet:
-
-- query remote Hermes APIs as a requirement
-- depend on `hermes-webui` internals or import its code
-- parse transcript payload bodies or assume undocumented SQLite columns beyond the minimal `sessions` / `messages` evidence that is defensively discovered at runtime
-- parse live agent/subagent lists from runtime payloads
-- expose arbitrary command execution
-- run `hermes doctor --fix`
-- run any other Hermes CLI subcommand
-- persist command history or build a full logs UX for action output
-
-### `state.db` scope
-
-When `state.db` is present, the probe now opens it in read-only mode and first discovers tables defensively. If the database exposes an obvious Hermes-style `sessions` and/or `messages` layout, the snapshot may include only these minimal signals:
-
-- table presence and sampled table names
-- cheap row counts for recognizable tables
-- latest `started_at` / `timestamp` values when those columns exist
-- a few recent session ids or `source` markers when those columns are obvious
-
-If the schema is different, locked, unreadable, or otherwise unrecognized, the probe does not fail. It keeps the file-level `state.db` evidence, records that the schema was not recognized, and continues with the rest of the read-only artifact probe.
+MIT

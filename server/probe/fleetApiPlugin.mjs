@@ -1,4 +1,5 @@
 import { collectHermesFleetSnapshot } from './fleetProbe.mjs';
+import { collectProfilesSnapshot } from './profileProbe.mjs';
 import { runDoctorAction, runStatusAction } from './doctorAction.mjs';
 import { streamChatResponse } from './chatAction.mjs';
 
@@ -118,6 +119,18 @@ async function handleStatusRequest(request, response) {
   }
 }
 
+async function handleProfilesRequest(_request, response) {
+  try {
+    const payload = await collectProfilesSnapshot();
+    sendJson(response, 200, payload);
+  } catch (error) {
+    sendJson(response, 500, {
+      source: 'profile-probe',
+      error: error instanceof Error ? error.message : 'Profile probe failure.',
+    });
+  }
+}
+
 async function handleChatRequest(request, response) {
   if (request.method !== 'POST') {
     response.setHeader('Allow', 'POST');
@@ -165,6 +178,9 @@ function registerFleetRoutes(server) {
   });
   server.middlewares.use('/api/actions/status', (request, response) => {
     void handleStatusRequest(request, response);
+  });
+  server.middlewares.use('/api/profiles', (request, response) => {
+    void handleProfilesRequest(request, response);
   });
   server.middlewares.use('/api/chat', (request, response) => {
     void handleChatRequest(request, response);

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import type { HermesInstanceRecord, OperatorActionId, OperatorActionSummary } from '../adapters/types';
 import { useLiveMetrics } from '../hooks/useLiveMetrics';
+import { useProfiles } from '../hooks/useProfiles';
 import { formatActionTimestamp, getIncidentCounts, getLatestActionRun, prioritizeIncidents, type ActionRunState } from './panelModel';
 
 type ChatEntry = { role: 'user' | 'agent'; text: string };
@@ -90,6 +91,7 @@ export function ProMode({ instance, actionRuns, onRunAction }: Props) {
   const [chatHistory, setChatHistory] = useState<ChatEntry[]>([]);
   const [isChatting, setIsChatting] = useState(false);
   const metrics = useLiveMetrics();
+  const { snapshot: profilesSnapshot } = useProfiles();
   const terminalRef = useRef<HTMLDivElement>(null);
 
   const handleChat = async (e: React.FormEvent) => {
@@ -291,6 +293,57 @@ export function ProMode({ instance, actionRuns, onRunAction }: Props) {
               <strong className="module-depth">{queue.depth}</strong>
             </div>
           ))}
+
+          {/* ── Profiles section ─────────────────────────────────── */}
+          {profilesSnapshot && profilesSnapshot.profiles.length > 0 && (
+            <>
+              <div className="ops-panel-divider" />
+              <div className="ops-panel-label">
+                Profiles
+                <span className="ops-incident-meta">{profilesSnapshot.profileCount} total</span>
+              </div>
+
+              {profilesSnapshot.profiles.map((profile) => {
+                const cronEnabled = profile.cronJobs.enabled;
+                const cronTotal = profile.cronJobs.count;
+                return (
+                  <div key={profile.id} className={`module-row ${profile.isActive ? 'profile-row-active' : ''}`}>
+                    <span className={`module-dot ${profile.isActive ? 'dot-green' : 'dot-yellow'}`} />
+                    <div className="module-row-body">
+                      <span className="module-key">
+                        {profile.name}
+                        {profile.isActive && <span className="profile-active-badge"> ●</span>}
+                      </span>
+                      <span className="module-note">
+                        {profile.model ?? 'no model'}{profile.provider ? ` · ${profile.provider}` : ''}
+                        {profile.sessions.lastActiveAgo ? ` · ${profile.sessions.lastActiveAgo}` : ''}
+                      </span>
+                    </div>
+                    <div className="profile-meta-badges">
+                      {profile.sessions.count > 0 && (
+                        <span className="profile-badge profile-badge-sessions" title="Sessions">
+                          {profile.sessions.count}s
+                        </span>
+                      )}
+                      {cronTotal > 0 && (
+                        <span
+                          className={`profile-badge ${cronEnabled > 0 ? 'profile-badge-cron-on' : 'profile-badge-cron-off'}`}
+                          title={`${cronEnabled}/${cronTotal} cron jobs enabled`}
+                        >
+                          ⏱{cronEnabled}
+                        </span>
+                      )}
+                      {profile.memoryCount > 0 && (
+                        <span className="profile-badge profile-badge-mem" title="Memory files">
+                          ◈{profile.memoryCount}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
         </div>
 
         {/* Incidents column */}

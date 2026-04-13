@@ -1685,6 +1685,38 @@ h1, h2, h3, p { margin: 0; }
   .module-card-wide { grid-column: span 1; }
 }
 
+/* ── Profile section ─────────────────────────────────────────────────────── */
+.profile-row-active {
+  background: rgba(232, 106, 26, 0.04);
+}
+
+.profile-active-badge {
+  color: var(--green);
+  font-size: 0.6rem;
+  margin-left: 2px;
+}
+
+.profile-meta-badges {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.profile-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.profile-badge-sessions   { background: var(--blue-bg);    color: var(--blue); }
+.profile-badge-cron-on    { background: var(--green-bg);   color: var(--green); }
+.profile-badge-cron-off   { background: rgba(255,255,255,0.04); color: var(--text-muted); }
+.profile-badge-mem        { background: var(--accent-soft); color: var(--accent-hi); }
+
 /* ══════════════════════════════════════════════════════════════════════════
    SKIN ENGINE
    Each skin is a [data-skin="<id>"] block that overrides CSS custom properties
